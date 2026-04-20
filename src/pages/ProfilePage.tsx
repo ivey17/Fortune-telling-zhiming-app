@@ -57,19 +57,26 @@ export default function ProfilePage({ onSettingsClick }: { onSettingsClick: () =
                   exit={{ opacity: 0 }}
                   className="space-y-4"
                 >
-                  {history.filter(h => h.type === 'AI 运势查询').map((item, idx) => (
-                    <div 
-                      key={idx} 
-                      onClick={() => setSelectedChat(item)}
-                      className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/10 flex justify-between items-center group cursor-pointer hover:bg-surface-container transition-colors"
-                    >
-                      <div>
-                        <p className="text-xs text-primary/60 font-label mb-1">{item.date} · {item.type}</p>
-                        <h4 className="font-bold text-on-surface">{item.title}</h4>
+                  {history.filter(h => h.type === 'AI 运势查询').length > 0 ? (
+                    history.filter(h => h.type === 'AI 运势查询').map((item, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => setSelectedChat(item)}
+                        className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/10 flex justify-between items-center group cursor-pointer hover:bg-surface-container transition-colors"
+                      >
+                        <div>
+                          <p className="text-xs text-primary/60 font-label mb-1">{item.date} · {item.type}</p>
+                          <h4 className="font-bold text-on-surface">{item.title}</h4>
+                        </div>
+                        <ChevronRight size={18} className="text-outline group-hover:text-primary transition-colors" />
                       </div>
-                      <ChevronRight size={18} className="text-outline group-hover:text-primary transition-colors" />
+                    ))
+                  ) : (
+                    <div className="text-center py-20 bg-surface-container-low rounded-3xl border border-dashed border-outline-variant/20">
+                      <History size={40} className="mx-auto text-primary/20 mb-4" />
+                      <p className="text-on-surface-variant/60 font-label">暂无运势深度追问记录</p>
                     </div>
-                  ))}
+                  )}
                 </motion.div>
               ) : (
                 <motion.div
@@ -118,19 +125,26 @@ export default function ProfilePage({ onSettingsClick }: { onSettingsClick: () =
                   exit={{ opacity: 0 }}
                   className="space-y-4"
                 >
-                  {history.filter(h => h.type === 'AI 起卦追问').map((item, idx) => (
-                    <div 
-                      key={idx} 
-                      onClick={() => setSelectedChat(item)}
-                      className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/10 flex justify-between items-center group cursor-pointer hover:bg-surface-container transition-colors"
-                    >
-                      <div>
-                        <p className="text-xs text-primary/60 font-label mb-1">{item.date} · {item.type}</p>
-                        <h4 className="font-bold text-on-surface">{item.title}</h4>
+                  {history.filter(h => h.type === 'AI 起卦追问').length > 0 ? (
+                    history.filter(h => h.type === 'AI 起卦追问').map((item, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => setSelectedChat(item)}
+                        className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/10 flex justify-between items-center group cursor-pointer hover:bg-surface-container transition-colors"
+                      >
+                        <div>
+                          <p className="text-xs text-primary/60 font-label mb-1">{item.date} · {item.type}</p>
+                          <h4 className="font-bold text-on-surface">{item.title}</h4>
+                        </div>
+                        <ChevronRight size={18} className="text-outline group-hover:text-primary transition-colors" />
                       </div>
-                      <ChevronRight size={18} className="text-outline group-hover:text-primary transition-colors" />
+                    ))
+                  ) : (
+                    <div className="text-center py-20 bg-surface-container-low rounded-3xl border border-dashed border-outline-variant/20">
+                      <MessageSquare size={40} className="mx-auto text-primary/20 mb-4" />
+                      <p className="text-on-surface-variant/60 font-label">暂无起卦追问记录</p>
                     </div>
-                  ))}
+                  )}
                 </motion.div>
               ) : (
                 <motion.div

@@ -20,7 +20,7 @@ async def register(req: AuthRequest):
     # Check if phone already exists
     res = supabase.table("app_users").select("id").eq("phone", req.phone).execute()
     if res.data and len(res.data) > 0:
-        raise HTTPException(status_code=400, detail="Phone number already registered")
+        raise HTTPException(status_code=400, detail="该手机号已注册")
 
     user_id = str(uuid.uuid4())
     hashed_password = get_password_hash(req.password)
@@ -38,7 +38,7 @@ async def register(req: AuthRequest):
         supabase.table("app_users").insert(new_user).execute()
     except Exception as e:
         print(f"Error registering user: {e}")
-        raise HTTPException(status_code=500, detail="Registration failed due to database error")
+        raise HTTPException(status_code=500, detail="注册失败，服务器数据库异常")
 
     token = create_access_token(data={"sub": user_id, "phone": req.phone})
     return AuthResponse(access_token=token, user_id=user_id)
@@ -47,11 +47,11 @@ async def register(req: AuthRequest):
 async def login(req: AuthRequest):
     res = supabase.table("app_users").select("*").eq("phone", req.phone).execute()
     if not res.data or len(res.data) == 0:
-        raise HTTPException(status_code=401, detail="Invalid phone number or password")
+        raise HTTPException(status_code=401, detail="手机号或密码错误")
 
     user = res.data[0]
     if not verify_password(req.password, user.get("password_hash")):
-        raise HTTPException(status_code=401, detail="Invalid phone number or password")
+        raise HTTPException(status_code=401, detail="手机号或密码错误")
 
     user_id = user.get("id")
     token = create_access_token(data={"sub": user_id, "phone": req.phone})
