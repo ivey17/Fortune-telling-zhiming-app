@@ -64,15 +64,14 @@ export default function ChartPage({ profile, onProfileUpdate }: { profile: any, 
       };
 
       const getColor = (char: string) => {
-        const ganElements: Record<string, string> = {
-          '甲': 'text-[#81c784]', '乙': 'text-[#81c784]', 
-          '丙': 'text-[#ff8a65]', '丁': 'text-[#ff8a65]', 
-          '戊': 'text-[#f2c36b]', '己': 'text-[#f2c36b]', 
-          '庚': 'text-[#cfd8dc]', '辛': 'text-[#cfd8dc]', 
-          '壬': 'text-[#64b5f6]', '癸': 'text-[#64b5f6]'
+        const elements: Record<string, string> = {
+          '甲': 'text-[#81c784]', '乙': 'text-[#81c784]', '寅': 'text-[#81c784]', '卯': 'text-[#81c784]',
+          '丙': 'text-[#ff8a65]', '丁': 'text-[#ff8a65]', '巳': 'text-[#ff8a65]', '午': 'text-[#ff8a65]',
+          '戊': 'text-[#f2c36b]', '己': 'text-[#f2c36b]', '辰': 'text-[#f2c36b]', '戌': 'text-[#f2c36b]', '丑': 'text-[#f2c36b]', '未': 'text-[#f2c36b]',
+          '庚': 'text-[#cfd8dc]', '辛': 'text-[#cfd8dc]', '申': 'text-[#cfd8dc]', '酉': 'text-[#cfd8dc]',
+          '壬': 'text-[#64b5f6]', '癸': 'text-[#64b5f6]', '子': 'text-[#64b5f6]', '亥': 'text-[#64b5f6]'
         };
-        };
-        return ganElements[char] || zhiElements[char] || 'text-on-surface';
+        return elements[char] || 'text-on-surface';
       };
 
       return [
