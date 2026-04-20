@@ -33,7 +33,7 @@ export default function CalendarPage() {
     return {
       solarDate: solar.toFullString(),
       lunarDate: `${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`,
-      lunarMonth: lunar.getMonthInChinese() + '月',
+      lunarMonth: lunar.getMonthInGanZhi() + '月',
       gzDay: lunar.getDayInGanZhi() + '日',
       gzMonth: lunar.getMonthInGanZhi() + '月',
       gzYear: lunar.getYearInGanZhi() + '年',
