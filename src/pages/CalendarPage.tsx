@@ -33,6 +33,7 @@ export default function CalendarPage() {
     return {
       solarDate: solar.toFullString(),
       lunarDate: `${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`,
+      lunarMonth: lunar.getMonthInChinese() + '月',
       gzDay: lunar.getDayInGanZhi() + '日',
       gzMonth: lunar.getMonthInGanZhi() + '月',
       gzYear: lunar.getYearInGanZhi() + '年',
@@ -264,7 +265,7 @@ export default function CalendarPage() {
               <div>
                 <p className="text-lg font-bold">{selectedDay.getMonth() + 1}月</p>
                 <p className="text-xs text-on-surface-variant font-label">
-                  {WEEKDAYS[selectedDay.getDay()]} · {lunarData.gzDay}
+                  {lunarData.lunarMonth} · {lunarData.gzDay}
                 </p>
               </div>
             </div>
