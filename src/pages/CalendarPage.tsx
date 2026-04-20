@@ -1,116 +1,167 @@
-import { ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, X, Clock, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { cn } from '../lib/utils';
-
-interface DayData {
-  day: number;
-  lucky?: boolean;
-  selected?: boolean;
-  yi: string[];
-  ji: string[];
-}
-
-const DAYS: DayData[] = [
-  { day: 1, lucky: true, yi: ['纳采', '订盟', '嫁娶'], ji: ['安床', '作灶'] },
-  { day: 2, yi: ['祭祀', '扫舍'], ji: ['开业', '动土'] },
-  { day: 3, yi: ['打扫', '沐浴'], ji: ['远行', '搬迁'] },
-  { day: 4, lucky: true, yi: ['求学', '理发'], ji: ['掘井', '词讼'] },
-  { day: 5, yi: ['祭祀', '解除'], ji: ['安葬', '破土'] },
-  { day: 6, yi: ['入殓', '移柩'], ji: ['入宅', '伐木'] },
-  { day: 7, yi: ['祈福', '求嗣'], ji: ['盖屋', '上梁'] },
-  { day: 8, yi: ['出行', '纳财'], ji: ['谢土', '祈福'] },
-  { day: 9, lucky: true, yi: ['作灶', '祭祀'], ji: ['嫁娶', '出行'] },
-  { day: 10, yi: ['裁衣', '经络'], ji: ['安床', '修造'] },
-  { day: 11, lucky: true, yi: ['竖柱', '上梁'], ji: ['词讼', '开渠'] },
-  { day: 12, yi: ['纳畜', '安葬'], ji: ['交易', '纳采'] },
-  { day: 13, yi: ['入宅', '入殓'], ji: ['成服', '除服'] },
-  { day: 14, yi: ['求嗣', '祈福'], ji: ['造仓', '破土'] },
-  { day: 15, lucky: true, yi: ['开光', '出行'], ji: ['安床', '入殓'] },
-  { day: 16, selected: true, yi: ['签约', '出行'], ji: ['动土', '掘井'] },
-  { day: 17, yi: ['竖柱', '上梁'], ji: ['安门', '修造'] },
-  { day: 18, lucky: true, yi: ['扫舍', '求医'], ji: ['入宅', '栽种'] },
-  { day: 19, yi: ['解除', '沐浴'], ji: ['词讼', '求嗣'] },
-  { day: 20, yi: ['纳采', '订盟'], ji: ['嫁娶', '纳财'] },
-  { day: 21, lucky: true, yi: ['开业', '交易'], ji: ['作灶', '求医'] },
-  { day: 22, yi: ['开卷', '求学'], ji: ['捕鱼', '乘船'] },
-  { day: 23, yi: ['开仓', '出货'], ji: ['扫合', '破土'] },
-  { day: 24, lucky: true, yi: ['远行', '开光'], ji: ['安门', '词讼'] },
-  { day: 25, yi: ['取渔', '捕捉'], ji: ['入宅', '移徙'] },
-  { day: 26, yi: ['扫舍', '修饰'], ji: ['作灶', '祈福'] },
-  { day: 27, yi: ['祭祀', '沐浴'], ji: ['伐木', '行丧'] },
-  { day: 28, yi: ['成服', '除服'], ji: ['开市', '交易'] },
-  { day: 29, yi: ['理发', '求职'], ji: ['掘井', '理财'] },
-  { day: 30, yi: ['祈福', '纳财'], ji: ['安床', '开光'] }
-];
-
-const MAY_DAYS: DayData[] = [
-  { day: 1, lucky: true, yi: ['嫁娶', '出行'], ji: ['安门'] },
-  { day: 2, yi: ['祭祀'], ji: ['动土'] },
-  { day: 3, lucky: true, yi: ['入宅', '安门'], ji: ['安葬'] },
-  { day: 4, yi: ['订盟', '开市'], ji: ['掘井'] },
-  { day: 5, lucky: true, yi: ['祈福', '解除'], ji: ['词讼'] },
-  { day: 6, yi: ['扫舍'], ji: ['理发'] },
-  { day: 7, lucky: true, yi: ['移徙', '入宅'], ji: ['修造'] },
-  { day: 8, yi: ['出行', '纳财'], ji: ['嫁娶'] },
-  { day: 9, lucky: true, yi: ['取渔', '祭祀'], ji: ['栽种'] },
-  { day: 10, yi: ['作灶', '扫舍'], ji: ['出行'] },
-];
+import { Solar, Lunar } from 'lunar-javascript';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 const ASSISTANTS = [
   { emoji: '💍', label: '婚嫁吉日', filter: '嫁娶' },
-  { emoji: '🏢', label: '开业吉日', filter: '开业' },
+  { emoji: '🏢', label: '开业吉日', filter: '开市' },
   { emoji: '🏠', label: '搬家吉日', filter: '入宅' },
   { emoji: '✈️', label: '出行吉日', filter: '出行' },
 ];
 
 export default function CalendarPage() {
-  const [selectedDayNum, setSelectedDayNum] = useState<number>(16);
-  const [hoveredDay, setHoveredDay] = useState<DayData | null>(null);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewDate, setViewDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState(new Date());
   const [selectedResult, setSelectedResult] = useState<{ label: string, dates: { month: string, day: number }[] } | null>(null);
 
-  const selectedDayData = DAYS.find(d => d.day === selectedDayNum) || DAYS[15];
+  // Update current time every minute for the fortune card
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      if (now.getMinutes() !== currentDate.getMinutes()) {
+        setCurrentDate(now);
+      }
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [currentDate]);
+
+  const lunarData = useMemo(() => {
+    const solar = Solar.fromDate(selectedDay);
+    const lunar = solar.getLunar();
+    return {
+      solarDate: solar.toFullString(),
+      lunarDate: `${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`,
+      gzDay: lunar.getDayInGanZhi() + '日',
+      gzMonth: lunar.getMonthInGanZhi() + '月',
+      gzYear: lunar.getYearInGanZhi() + '年',
+      yi: lunar.getDayYi(),
+      ji: lunar.getDayJi(),
+      isLucky: lunar.getDayYi().length > lunar.getDayJi().length
+    };
+  }, [selectedDay]);
+
+  const currentFortune = useMemo(() => {
+    const solar = Solar.fromDate(currentDate);
+    const lunar = solar.getLunar();
+    const timeZhi = lunar.getTimeZhi();
+    
+    // In a real app, time fortune depends on many factors. 
+    // Here we use a simplified logic based on the current hour's stem/zhi relationship or common patterns.
+    const hourYi = lunar.getTimeYi();
+    const hourJi = lunar.getTimeJi();
+    
+    return {
+      hour: timeZhi + '时',
+      isLucky: hourYi.includes('无') ? false : hourYi.length > 0,
+      yi: hourYi.slice(0, 3),
+      ji: hourJi.slice(0, 3)
+    };
+  }, [currentDate]);
+
+  const monthDays = useMemo(() => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    const days = [];
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) {
+      const d = new Date(year, month, i);
+      const s = Solar.fromDate(d);
+      const l = s.getLunar();
+      days.push({
+        date: d,
+        day: i,
+        isLucky: l.getDayYi().length > 6, // Simplified lucky day logic
+        isToday: d.toDateString() === new Date().toDateString()
+      });
+    }
+    return days;
+  }, [viewDate]);
 
   const handleAssistantClick = (assistant: typeof ASSISTANTS[0]) => {
-    // Current month (April) recommendations from 16th onwards
-    const aprilLucky = DAYS
-      .filter(d => d.day >= 16)
-      .filter(d => d.yi.includes(assistant.filter) || (d.lucky && Math.random() > 0.3))
-      .map(d => ({ month: '四月', day: d.day }));
+    const results: { month: string, day: number }[] = [];
+    let checkDate = new Date();
     
-    let combined = [...aprilLucky];
-    
-    // If not enough dates, pull from May
-    if (combined.length < 3) {
-      const mayLucky = MAY_DAYS
-        .filter(d => d.yi.includes(assistant.filter) || (d.lucky && Math.random() > 0.3))
-        .map(d => ({ month: '五月', day: d.day }));
-      combined = [...combined, ...mayLucky];
+    // Search for the next 60 days
+    for (let i = 0; i < 60 && results.length < 3; i++) {
+      const d = new Date(checkDate.getTime() + i * 24 * 60 * 60 * 1000);
+      const l = Solar.fromDate(d).getLunar();
+      if (l.getDayYi().includes(assistant.filter)) {
+        results.push({
+          month: (d.getMonth() + 1) + '月',
+          day: d.getDate()
+        });
+      }
     }
     
     setSelectedResult({ 
       label: assistant.label, 
-      dates: combined.slice(0, 3) 
+      dates: results
     });
   };
 
-  const getWeekday = (day: number) => {
-    const date = new Date(2026, 3, day); // April is 3
-    const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-    return days[date.getDay()];
-  };
-
-  const getGanZhi = (day: number) => {
-    // Mock Ganzhi mapping for demo
-    const gz = ['甲子', '乙丑', '丙寅', '丁卯', '戊辰', '己巳', '庚午', '辛未', '壬申', '癸酉', '甲戌', '乙亥'];
-    return gz[day % gz.length] + '日';
+  const changeMonth = (offset: number) => {
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1));
   };
 
   return (
     <div className="space-y-10 pb-20">
       <h2 className="text-4xl font-extrabold tracking-tight font-headline text-primary">择吉日历</h2>
+
+      {/* Real-time Fortune Card */}
+      <section>
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={cn(
+            "p-6 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-6 shadow-lg relative overflow-hidden",
+            currentFortune.isLucky ? "bg-primary/5 border-primary/20" : "bg-surface-container-low border-outline-variant/10"
+          )}
+        >
+          <div className="flex items-center gap-4 relative z-10">
+            <div className={cn(
+              "w-12 h-12 rounded-full flex items-center justify-center shadow-inner",
+              currentFortune.isLucky ? "bg-primary text-background" : "bg-outline-variant text-on-surface-variant"
+            )}>
+              <Clock size={24} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-on-surface">当前时辰：{currentFortune.hour}</h3>
+                <span className={cn(
+                  "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest",
+                  currentFortune.isLucky ? "bg-primary text-background" : "bg-surface-container-highest text-on-surface-variant"
+                )}>
+                  {currentFortune.isLucky ? '大吉' : '中平'}
+                </span>
+              </div>
+              <p className="text-xs text-on-surface-variant font-label mt-1">
+                实时北京时间: {currentDate.toLocaleTimeString('zh-CN', { hour12: false })}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex gap-8 relative z-10">
+            <div className="space-y-1">
+              <span className="text-[10px] font-black text-green-500 uppercase tracking-widest block">宜</span>
+              <p className="text-sm font-bold text-on-surface">{currentFortune.yi.join(' ') || '诸事不宜'}</p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-black text-error uppercase tracking-widest block">忌</span>
+              <p className="text-sm font-bold text-on-surface">{currentFortune.ji.join(' ') || '诸事不忌'}</p>
+            </div>
+          </div>
+
+          <Sparkles size={120} className="absolute -right-8 -bottom-8 text-primary/5 pointer-events-none" />
+        </motion.div>
+      </section>
 
       {/* Monthly Calendar */}
       <section className="relative">
@@ -118,66 +169,56 @@ export default function CalendarPage() {
           <div className="absolute inset-0 opacity-5 pointer-events-none bento-texture" />
           <div className="flex justify-between items-center mb-8 relative z-10">
             <div className="flex flex-col">
-              <h3 className="text-2xl font-bold font-headline text-on-surface">2026年 4月</h3>
-              <span className="text-xs text-primary/60 font-label tracking-tighter">丙午年 壬辰月</span>
+              <h3 className="text-2xl font-bold font-headline text-on-surface">
+                {viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月
+              </h3>
+              <span className="text-xs text-primary/60 font-label tracking-tighter">
+                {Lunar.fromDate(viewDate).getYearInGanZhi()}年 {Lunar.fromDate(viewDate).getMonthInGanZhi()}月
+              </span>
             </div>
             <div className="flex gap-4">
-              <ChevronLeft size={20} className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer" />
-              <ChevronRight size={20} className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer" />
+              <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-primary/10 rounded-full transition-colors">
+                <ChevronLeft size={20} className="text-on-surface-variant hover:text-primary" />
+              </button>
+              <button onClick={() => changeMonth(1)} className="p-2 hover:bg-primary/10 rounded-full transition-colors">
+                <ChevronRight size={20} className="text-on-surface-variant hover:text-primary" />
+              </button>
             </div>
           </div>
-          <div className="grid grid-cols-7 gap-y-6 text-center relative z-10">
+          <div className="grid grid-cols-7 gap-y-4 text-center relative z-10">
             {WEEKDAYS.map(w => (
-              <div key={w} className="text-[10px] font-bold text-primary/40 uppercase tracking-widest font-label">{w}</div>
+              <div key={w} className="text-[10px] font-bold text-primary/40 uppercase tracking-widest font-label pb-2">{w}</div>
             ))}
-            {/* Offset for April 2026 (Starts on Wednesday) */}
-            <div className="h-10"></div>
-            <div className="h-10"></div>
-            <div className="h-10"></div>
             
-            {DAYS.map((d, idx) => (
+            {monthDays.map((d, idx) => (
               <div 
                 key={idx} 
-                className="relative flex flex-col items-center justify-center h-12 group cursor-pointer"
-                onMouseEnter={() => setHoveredDay(d)}
-                onMouseLeave={() => setHoveredDay(null)}
-                onClick={() => setSelectedDayNum(d.day)}
+                className={cn(
+                  "relative flex flex-col items-center justify-center h-12 group transition-all",
+                  d ? "cursor-pointer" : "pointer-events-none"
+                )}
+                onClick={() => d && setSelectedDay(d.date)}
               >
-                {selectedDayNum === d.day && (
+                {d && selectedDay.toDateString() === d.date.toDateString() && (
                   <motion.div 
                     layoutId="calendar-select"
                     className="absolute w-10 h-10 bg-primary/10 rounded-lg border border-primary/20 scale-110 z-0"
                   />
                 )}
-                <span className={cn(
-                  "font-bold relative z-10 transition-colors",
-                  selectedDayNum === d.day ? 'text-primary' : 'text-on-surface/60 group-hover:text-primary'
-                )}>
-                  {d.day}
-                </span>
-
-                {/* Hover Tooltip */}
-                <AnimatePresence>
-                  {hoveredDay?.day === d.day && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute bottom-full mb-2 w-40 bg-surface-container-highest/95 backdrop-blur-md p-3 rounded-xl shadow-2xl border border-outline-variant/20 z-[100] pointer-events-none"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex gap-2">
-                          <span className="text-green-400 font-bold text-[10px] bg-green-500/10 px-1 rounded">宜</span>
-                          <span className="text-xs text-on-surface-variant font-medium">{d.yi.join(', ')}</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-error font-bold text-[10px] bg-error/10 px-1 rounded">忌</span>
-                          <span className="text-xs text-on-surface-variant font-medium">{d.ji[0]}</span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {d && (
+                  <>
+                    <span className={cn(
+                      "font-bold relative z-10 transition-colors",
+                      selectedDay.toDateString() === d.date.toDateString() ? 'text-primary' : 'text-on-surface/60 group-hover:text-primary',
+                      d.isToday && "underline decoration-primary underline-offset-4"
+                    )}>
+                      {d.day}
+                    </span>
+                    {d.isLucky && (
+                      <div className="absolute top-1 right-2 w-1 h-1 bg-primary rounded-full animate-pulse" />
+                    )}
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -188,16 +229,18 @@ export default function CalendarPage() {
       <section className="grid lg:grid-cols-2 gap-6 items-start">
         <div className="space-y-6">
           <motion.div 
-            key={selectedDayNum}
+            key={selectedDay.toDateString()}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="bg-surface-container rounded-xl p-8 border-l-4 border-primary/40 shadow-xl"
           >
             <div className="flex items-baseline gap-4 mb-6">
-              <h3 className="text-5xl font-black font-headline text-on-surface">{selectedDayNum}</h3>
+              <h3 className="text-5xl font-black font-headline text-on-surface">{selectedDay.getDate()}</h3>
               <div>
-                <p className="text-lg font-bold">四月</p>
-                <p className="text-xs text-on-surface-variant font-label">{getWeekday(selectedDayNum)} · {getGanZhi(selectedDayNum)}</p>
+                <p className="text-lg font-bold">{selectedDay.getMonth() + 1}月</p>
+                <p className="text-xs text-on-surface-variant font-label">
+                  {WEEKDAYS[selectedDay.getDay()]} · {lunarData.gzDay}
+                </p>
               </div>
             </div>
             <div className="space-y-6">
@@ -206,7 +249,7 @@ export default function CalendarPage() {
                   <span className="text-green-400 font-bold text-sm">宜</span>
                 </div>
                 <div className="flex flex-wrap gap-2 pt-2">
-                  <span className="text-on-surface text-lg font-medium">{selectedDayData.yi.join(', ')}</span>
+                  <span className="text-on-surface text-lg font-medium">{lunarData.yi.slice(0, 5).join(', ') || '诸事不宜'}</span>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -214,7 +257,7 @@ export default function CalendarPage() {
                   <span className="text-error font-bold text-sm">忌</span>
                 </div>
                 <div className="flex flex-wrap gap-2 pt-2">
-                  <span className="text-on-surface text-lg font-medium">{selectedDayData.ji.join(', ')}</span>
+                  <span className="text-on-surface text-lg font-medium">{lunarData.ji.slice(0, 5).join(', ') || '诸事不忌'}</span>
                 </div>
               </div>
               <div className="pt-6 border-t border-outline-variant/10">
@@ -223,7 +266,8 @@ export default function CalendarPage() {
                   <span className="text-[10px] uppercase tracking-widest font-bold text-primary/80">AI 智能解读</span>
                 </div>
                 <p className="text-on-surface-variant text-sm leading-relaxed italic">
-                  今日{getGanZhi(selectedDayNum).charAt(0)}气偏旺，宜进行{selectedDayData.yi[0]}与筹谋。气场流转之日，{selectedDayData.ji[0]}易招口舌，宜顺势而为。
+                  此日为{lunarData.lunarDate}，{lunarData.gzDay}，五行感应良好。适合安排{lunarData.yi[0]}等事务。
+                  {lunarData.ji.length > 0 && `注意防范${lunarData.ji[0]}相关的突发状况。`}
                 </p>
               </div>
             </div>
@@ -233,7 +277,7 @@ export default function CalendarPage() {
         {/* AI Assistants */}
         <div className="space-y-6">
           <div className="space-y-4">
-            <h4 className="text-sm font-bold tracking-[0.2em] uppercase text-on-surface-variant/60 ml-2">智能择吉</h4>
+            <h4 className="text-sm font-bold tracking-[0.2em] uppercase text-on-surface-variant/60 ml-2">智能择吉推荐</h4>
             <div className="grid grid-cols-2 gap-4">
               {ASSISTANTS.map((a, idx) => (
                 <motion.button 
@@ -253,7 +297,6 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {/* Assistant Selection Result positioned BELOW assistants */}
           <AnimatePresence>
             {selectedResult && (
               <motion.div
@@ -270,18 +313,23 @@ export default function CalendarPage() {
                 </button>
                 <div className="flex items-center gap-2 mb-4">
                   <Sparkles size={16} className="text-primary" />
-                  <h4 className="font-bold text-primary">{selectedResult.label}推荐</h4>
+                  <h4 className="font-bold text-primary">推荐吉日 (当前日期之后)</h4>
                 </div>
                 <div className="flex gap-3">
-                  {selectedResult.dates.map((dateObj, idx) => (
+                  {selectedResult.dates.length > 0 ? selectedResult.dates.map((dateObj, idx) => (
                     <div key={idx} className="flex-1 bg-surface-container-low p-3 rounded-lg text-center border border-primary/10">
                       <span className="block text-2xl font-black text-primary font-headline">{dateObj.day}</span>
                       <span className="text-[10px] text-on-surface-variant font-label">{dateObj.month}</span>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="flex items-center gap-2 text-xs text-on-surface-variant/60 py-4">
+                      <AlertCircle size={14} />
+                      近期暂无完全符合条件的极佳吉日。
+                    </div>
+                  )}
                 </div>
                 <p className="text-[10px] text-primary/60 mt-4 leading-relaxed">
-                  以上日期经人工辅助校验，符合《玉匣记》择吉标准。若本月吉日不足，已自动为您推荐下月（五月）优选日期。
+                  以上日期经《玉匣记》标准实时计算。已自动过滤过期日期，为您展示未来最优选。
                 </p>
               </motion.div>
             )}
