@@ -63,8 +63,6 @@ export default function CalendarPage() {
     };
   }, [currentDate]);
 
-  const [hoveredDayData, setHoveredDayData] = useState<{ day: number, yi: string[], ji: string[] } | null>(null);
-
   const monthDays = useMemo(() => {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
@@ -80,8 +78,7 @@ export default function CalendarPage() {
       days.push({
         date: d,
         day: i,
-        yi: l.getDayYi().slice(0, 3),
-        ji: l.getDayJi().slice(0, 3),
+        isLucky: l.getDayYi().length > 6, // Simplified lucky day logic
         isToday: d.toDateString() === new Date().toDateString()
       });
     }
@@ -200,8 +197,6 @@ export default function CalendarPage() {
                   "relative flex flex-col items-center justify-center h-12 group transition-all",
                   d ? "cursor-pointer" : "pointer-events-none"
                 )}
-                onMouseEnter={() => d && setHoveredDayData({ day: d.day, yi: d.yi, ji: d.ji })}
-                onMouseLeave={() => setHoveredDayData(null)}
                 onClick={() => d && setSelectedDay(d.date)}
               >
                 {d && selectedDay.toDateString() === d.date.toDateString() && (
@@ -219,29 +214,9 @@ export default function CalendarPage() {
                     )}>
                       {d.day}
                     </span>
-
-                    {/* Hover Tooltip */}
-                    <AnimatePresence>
-                      {hoveredDayData?.day === d.day && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                          className="absolute bottom-full mb-2 w-40 bg-surface-container-highest/95 backdrop-blur-md p-3 rounded-xl shadow-2xl border border-outline-variant/20 z-[100] pointer-events-none"
-                        >
-                          <div className="space-y-2 text-left">
-                            <div className="flex gap-2 items-start">
-                              <span className="text-green-400 font-bold text-[9px] bg-green-500/10 px-1 rounded h-4 flex items-center">宜</span>
-                              <span className="text-[10px] text-on-surface-variant font-medium leading-tight">{d.yi.join(', ') || '诸事不宜'}</span>
-                            </div>
-                            <div className="flex gap-2 items-start">
-                              <span className="text-error font-bold text-[9px] bg-error/10 px-1 rounded h-4 flex items-center">忌</span>
-                              <span className="text-[10px] text-on-surface-variant font-medium leading-tight">{d.ji.join(', ') || '诸事不忌'}</span>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    {d.isLucky && (
+                      <div className="absolute top-1 right-2 w-1 h-1 bg-primary rounded-full animate-pulse" />
+                    )}
                   </>
                 )}
               </div>
