@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+supabase
+pydantic
+pydantic-settings
+google-genai
+python-dotenv
+pyjwt
+passlib[bcrypt]
