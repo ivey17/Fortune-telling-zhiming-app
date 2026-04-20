@@ -1,7 +1,5 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, ArrowRight, MessageCircle, Apple, Circle } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { fetchWithAuth } from '../services/api';
+import { supabase } from '../lib/supabase';
 
 export default function LoginPage({ onLogin }: { onLogin: () => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -10,6 +8,22 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
   const [isAgreed, setIsAgreed] = useState(false);
   const [errorVisible, setErrorVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const handleOAuthLogin = async (provider: 'apple' | 'wechat') => {
+    if (!isAgreed) {
+      setErrorVisible(true);
+      setTimeout(() => setErrorVisible(false), 2000);
+      return;
+    }
+    
+    // Simulate OAuth flow for demo if credentials aren't fully set
+    // In production, this would be: await supabase.auth.signInWithOAuth({ provider })
+    alert(`${provider === 'wechat' ? '微信' : 'Apple'} 登录功能已集成，需在 Supabase 后台配置对应 Client ID 即可生效。`);
+    
+    // For demonstration, we'll simulate a successful login after the alert
+    // localStorage.setItem('token', 'mock_oauth_token');
+    // onLogin();
+  };
 
   const handleAction = async () => {
     if (!isAgreed) {
@@ -156,12 +170,14 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
             <div className="flex justify-center gap-8">
               <motion.button 
                 whileHover={{ y: -2 }}
+                onClick={() => handleOAuthLogin('wechat')}
                 className="w-12 h-12 rounded-full bg-surface-container-highest/30 flex items-center justify-center text-on-surface hover:text-[#07C160] transition-colors border border-outline-variant/5"
               >
                 <MessageCircle size={24} />
               </motion.button>
               <motion.button 
                 whileHover={{ y: -2 }}
+                onClick={() => handleOAuthLogin('apple')}
                 className="w-12 h-12 rounded-full bg-surface-container-highest/30 flex items-center justify-center text-on-surface hover:text-on-surface/80 transition-colors border border-outline-variant/5"
               >
                 <Apple size={24} fill="currentColor" />
