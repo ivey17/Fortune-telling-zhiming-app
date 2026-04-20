@@ -59,9 +59,9 @@ export default function FortunePage() {
           <span className="w-2 h-2 rounded-full bg-green-400/60 shadow-[0_0_8px_rgba(74,222,128,0.4)]"></span>
           <span className="font-headline font-bold text-on-surface">宜：签约·出行</span>
         </div>
-        <div className="flex-1 bg-surface-container-low p-4 rounded-xl flex items-center justify-center gap-3 opacity-60">
-          <span className="w-2 h-2 rounded-full bg-on-surface-variant/40"></span>
-          <span className="font-headline font-bold text-on-surface-variant">忌：动土·嫁娶</span>
+        <div className="flex-1 bg-surface-container-low p-4 rounded-xl flex items-center justify-center gap-3">
+          <span className="w-2 h-2 rounded-full bg-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.4)]"></span>
+          <span className="font-headline font-bold text-on-surface">忌：动土·嫁娶</span>
         </div>
       </section>
 
