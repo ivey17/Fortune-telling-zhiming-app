@@ -4,21 +4,24 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { fetchWithAuth } from '../services/api';
 
-export default function SettingsPage({ onBack, onLogout }: { onBack: () => void, onLogout: () => void }) {
+import { Calendar, Clock, Venus, Mars } from 'lucide-react';
+
+export default function SettingsPage({ onBack, onLogout, onProfileUpdate }: { onBack: () => void, onLogout: () => void, onProfileUpdate: () => void }) {
   const [subPage, setSubPage] = useState<'main' | 'profile' | 'security' | 'about'>('main');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   
   // Profile state
   const [nickname, setNickname] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [gender, setGender] = useState<'male' | 'female'>('male');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (subPage === 'profile') {
       fetchWithAuth('/api/user/profile').then(data => {
         setNickname(data.nickname || '');
+        setGender(data.gender || 'male');
         if (data.birth_date) {
-          // Convert ISO string to datetime-local format (YYYY-MM-DDThh:mm)
           const date = new Date(data.birth_date);
           const formatted = date.toISOString().slice(0, 16);
           setBirthDate(formatted);
@@ -32,12 +35,17 @@ export default function SettingsPage({ onBack, onLogout }: { onBack: () => void,
     try {
       await fetchWithAuth('/api/user/profile', {
         method: 'POST',
-        body: JSON.stringify({ nickname, birth_date: birthDate ? new Date(birthDate).toISOString() : null })
+        body: JSON.stringify({ 
+          nickname, 
+          birth_date: birthDate ? new Date(birthDate).toISOString() : null,
+          gender
+        })
       });
-      alert('保存成功！');
+      onProfileUpdate(); // Refresh global profile state
+      alert('资料已同步至星象中。');
     } catch (error) {
       console.error(error);
-      alert('保存失败，请稍后再试。');
+      alert('同步失败，请检查网络。');
     } finally {
       setIsSaving(false);
     }
@@ -66,25 +74,63 @@ export default function SettingsPage({ onBack, onLogout }: { onBack: () => void,
             <div className="space-y-6">
               <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
                 <p className="text-on-surface-variant text-sm mb-6">完善您的生辰八字信息以获得更精准的测算结果。</p>
-                <div className="space-y-5">
-                  <div className="space-y-1">
+                <div className="space-y-6">
+                  {/* Nickname */}
+                  <div className="space-y-2">
                     <label className="text-[10px] uppercase tracking-widest text-primary/60 ml-2 font-bold font-headline">昵称</label>
                     <input 
                       type="text" 
-                      className="w-full bg-surface-container-highest px-4 py-3 rounded-xl focus:outline-none focus:ring-1 ring-primary/30 transition-all" 
+                      className="w-full bg-surface-container-highest px-4 py-3 rounded-xl focus:outline-none focus:ring-1 ring-primary/30 transition-all text-sm" 
                       value={nickname}
                       onChange={(e) => setNickname(e.target.value)}
                       placeholder="设置您的昵称"
                     />
                   </div>
-                  <div className="space-y-1">
+
+                  {/* Gender Selector */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] uppercase tracking-widest text-primary/60 ml-2 font-bold font-headline">性别 (乾坤)</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        onClick={() => setGender('male')}
+                        className={cn(
+                          "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all",
+                          gender === 'male' ? "bg-primary/10 border-primary text-primary" : "bg-surface-container-highest border-transparent text-on-surface-variant/40"
+                        )}
+                      >
+                        <Mars size={16} />
+                        <span className="text-xs font-bold">乾造 (男)</span>
+                      </button>
+                      <button 
+                        onClick={() => setGender('female')}
+                        className={cn(
+                          "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all",
+                          gender === 'female' ? "bg-primary/10 border-primary text-primary" : "bg-surface-container-highest border-transparent text-on-surface-variant/40"
+                        )}
+                      >
+                        <Venus size={16} />
+                        <span className="text-xs font-bold">坤造 (女)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Date Picker (Optimized UI) */}
+                  <div className="space-y-2">
                     <label className="text-[10px] uppercase tracking-widest text-primary/60 ml-2 font-bold font-headline">出生日期 (精确到分钟)</label>
-                    <input 
-                      type="datetime-local" 
-                      className="w-full bg-surface-container-highest px-4 py-3 rounded-xl focus:outline-none focus:ring-1 ring-primary/30 transition-all appearance-none" 
-                      value={birthDate}
-                      onChange={(e) => setBirthDate(e.target.value)}
-                    />
+                    <div className="relative group">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary/40 group-focus-within:text-primary transition-colors pointer-events-none">
+                        <Calendar size={18} />
+                      </div>
+                      <input 
+                        type="datetime-local" 
+                        className="w-full bg-surface-container-highest pl-12 pr-4 py-3 rounded-xl focus:outline-none focus:ring-1 ring-primary/30 transition-all text-sm appearance-none cursor-pointer" 
+                        value={birthDate}
+                        onChange={(e) => setBirthDate(e.target.value)}
+                      />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-primary/20 pointer-events-none">
+                        <Clock size={16} />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

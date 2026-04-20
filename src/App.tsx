@@ -11,11 +11,29 @@ import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 
+import { fetchWithAuth } from './services/api';
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
   const [activeTab, setActiveTab] = useState<Tab>('fortune');
   const [prevTab, setPrevTab] = useState<Tab>('fortune');
   const [showSettings, setShowSettings] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+
+  const fetchProfile = async () => {
+    try {
+      const data = await fetchWithAuth('/api/user/profile');
+      setProfile(data);
+    } catch (error) {
+      console.error("Failed to fetch profile", error);
+    }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchProfile();
+    }
+  }, [isLoggedIn]);
 
   useEffect(() => {
     // Hide default scrollbar globally
@@ -41,10 +59,10 @@ export default function App() {
   const renderPage = () => {
     switch (activeTab) {
       case 'fortune': return <FortunePage />;
-      case 'chart': return <ChartPage />;
+      case 'chart': return <ChartPage profile={profile} />;
       case 'calendar': return <CalendarPage />;
       case 'divination': return <DivinationPage />;
-      case 'profile': return <ProfilePage onSettingsClick={() => setShowSettings(true)} />;
+      case 'profile': return <ProfilePage profile={profile} onSettingsClick={() => setShowSettings(true)} />;
       default: return <FortunePage />;
     }
   };
@@ -81,6 +99,7 @@ export default function App() {
             >
               <SettingsPage 
                 onBack={() => setShowSettings(false)} 
+                onProfileUpdate={fetchProfile}
                 onLogout={() => {
                   localStorage.removeItem('token');
                   setIsLoggedIn(false);

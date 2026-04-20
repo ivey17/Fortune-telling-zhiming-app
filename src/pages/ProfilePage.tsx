@@ -6,24 +6,22 @@ import { fetchWithAuth } from '../services/api';
 
 type ProfileSubPage = 'main' | 'fortune-history' | 'divination-history' | 'coupons' | 'recharge';
 
-export default function ProfilePage({ onSettingsClick }: { onSettingsClick: () => void }) {
+export default function ProfilePage({ profile, onSettingsClick }: { profile: any, onSettingsClick: () => void }) {
   const [subPage, setSubPage] = useState<ProfileSubPage>('main');
   const [membershipLevel, setMembershipLevel] = useState<'gold' | 'platinum'>('gold');
   const [selection, setSelection] = useState<string>('月度');
   const [selectedChat, setSelectedChat] = useState<{ title: string, messages: { role: 'user' | 'ai', content: string }[] } | null>(null);
 
-  const [profile, setProfile] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchWithAuth('/api/user/profile').then(data => {
-      setProfile(data);
-      if (data.membership_level && data.membership_level !== 'none') {
-        setMembershipLevel(data.membership_level);
-      }
-    }).catch(console.error);
+    if (profile?.membership_level && profile?.membership_level !== 'none') {
+      setMembershipLevel(profile.membership_level);
+    }
+  }, [profile]);
 
+  useEffect(() => {
     fetchWithAuth('/api/user/history').then(data => {
       setHistory(data.map((item: any) => ({
         date: new Date(item.created_at).toISOString().split('T')[0],

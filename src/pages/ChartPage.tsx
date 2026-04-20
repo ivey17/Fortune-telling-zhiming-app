@@ -1,23 +1,10 @@
 import { Info, Sparkles, TrendingUp, ShieldCheck, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Solar } from 'lunar-javascript';
-import { fetchWithAuth } from '../services/api';
 
-export default function ChartPage() {
+export default function ChartPage({ profile }: { profile: any }) {
   const [selectedYear, setSelectedYear] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchWithAuth('/api/user/profile').then(data => {
-      setProfile(data);
-      setLoading(false);
-    }).catch(err => {
-      console.error(err);
-      setLoading(false);
-    });
-  }, []);
 
   const baziData = useMemo(() => {
     if (!profile?.birth_date) return null;
@@ -87,15 +74,6 @@ export default function ChartPage() {
     { year: '2029年', text: '己酉', color: 'text-[#cfd8dc]', sub: '再而可见', analysis: '己酉之年，金气纯正。食伤生财，灵感迸发，适合从事创意或技术类工作。情感生活丰富多彩，单身者有望脱单。' },
   ];
 
-  if (loading) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="animate-spin text-primary" size={40} />
-        <p className="text-primary/60 font-headline font-bold">正在校准星象命盘...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-10 pb-24">
       <h2 className="text-4xl font-headline font-extrabold tracking-tight text-primary">八字命盘</h2>
@@ -133,7 +111,9 @@ export default function ChartPage() {
         </div>
         <div className="mt-10 pt-8 border-t border-outline-variant/10 flex justify-between items-center">
           <div className="flex gap-4">
-            <div className="px-3 py-1 bg-surface-container-highest rounded text-[10px] font-label text-on-surface-variant">乾造 (男)</div>
+            <div className="px-3 py-1 bg-surface-container-highest rounded text-[10px] font-label text-on-surface-variant">
+              {profile?.gender === 'female' ? '坤造 (女)' : '乾造 (男)'}
+            </div>
             <div className="px-3 py-1 bg-surface-container-highest rounded text-[10px] font-label text-on-surface-variant">
               公历: {profile?.birth_date ? new Date(profile.birth_date).toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-') : '未设置'}
             </div>
