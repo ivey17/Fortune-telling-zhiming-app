@@ -1,33 +1,90 @@
-import { useState } from 'react';
-import { User, ShieldCheck, Bell, Eye, Info, ChevronRight, ArrowLeft, LogOut, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { User, ShieldCheck, Bell, Eye, Info, ChevronRight, ArrowLeft, LogOut, Sparkles, Save, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { fetchWithAuth } from '../services/api';
 
 export default function SettingsPage({ onBack, onLogout }: { onBack: () => void, onLogout: () => void }) {
   const [subPage, setSubPage] = useState<'main' | 'profile' | 'security' | 'about'>('main');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  
+  // Profile state
+  const [nickname, setNickname] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (subPage === 'profile') {
+      fetchWithAuth('/api/user/profile').then(data => {
+        setNickname(data.nickname || '');
+        if (data.birth_date) {
+          // Convert ISO string to datetime-local format (YYYY-MM-DDThh:mm)
+          const date = new Date(data.birth_date);
+          const formatted = date.toISOString().slice(0, 16);
+          setBirthDate(formatted);
+        }
+      }).catch(console.error);
+    }
+  }, [subPage]);
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      await fetchWithAuth('/api/user/profile', {
+        method: 'POST',
+        body: JSON.stringify({ nickname, birth_date: birthDate ? new Date(birthDate).toISOString() : null })
+      });
+      alert('保存成功！');
+    } catch (error) {
+      console.error(error);
+      alert('保存失败，请稍后再试。');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const renderSubPage = () => {
     switch (subPage) {
       case 'profile':
         return (
           <div className="space-y-8">
-            <button onClick={() => setSubPage('main')} className="flex items-center gap-2 text-primary/60 hover:text-primary transition-colors">
-              <ArrowLeft size={18} />
-              <span className="font-headline font-bold text-xs">返回</span>
-            </button>
+            <div className="flex justify-between items-center">
+              <button onClick={() => setSubPage('main')} className="flex items-center gap-2 text-primary/60 hover:text-primary transition-colors">
+                <ArrowLeft size={18} />
+                <span className="font-headline font-bold text-xs">返回</span>
+              </button>
+              <button 
+                onClick={handleSaveProfile}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-background rounded-full font-bold text-xs hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                保存更改
+              </button>
+            </div>
             <h2 className="text-2xl font-bold text-primary font-headline">个人资料</h2>
             <div className="space-y-6">
               <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
-                <p className="text-on-surface-variant text-sm mb-4">完善您的生辰八字信息以获得更精准的测算结果。</p>
-                <div className="space-y-4">
+                <p className="text-on-surface-variant text-sm mb-6">完善您的生辰八字信息以获得更精准的测算结果。</p>
+                <div className="space-y-5">
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase tracking-widest text-primary/60 ml-2 font-bold font-headline">昵称</label>
-                    <input type="text" className="w-full bg-surface-container-highest px-4 py-3 rounded-xl focus:outline-none" defaultValue="知命行者" />
+                    <input 
+                      type="text" 
+                      className="w-full bg-surface-container-highest px-4 py-3 rounded-xl focus:outline-none focus:ring-1 ring-primary/30 transition-all" 
+                      value={nickname}
+                      onChange={(e) => setNickname(e.target.value)}
+                      placeholder="设置您的昵称"
+                    />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-widest text-primary/60 ml-2 font-bold font-headline">出生日期</label>
-                    <input type="date" className="w-full bg-surface-container-highest px-4 py-3 rounded-xl focus:outline-none" defaultValue="1984-12-23" />
+                    <label className="text-[10px] uppercase tracking-widest text-primary/60 ml-2 font-bold font-headline">出生日期 (精确到分钟)</label>
+                    <input 
+                      type="datetime-local" 
+                      className="w-full bg-surface-container-highest px-4 py-3 rounded-xl focus:outline-none focus:ring-1 ring-primary/30 transition-all appearance-none" 
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                    />
                   </div>
                 </div>
               </div>

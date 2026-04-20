@@ -355,6 +355,11 @@ export default function ProfilePage({ onSettingsClick }: { onSettingsClick: () =
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-headline font-bold text-on-background">{profile?.nickname || '知命行者'}</h3>
+                {profile?.birth_date && (
+                  <p className="text-[10px] text-on-surface-variant font-label mt-1 uppercase tracking-widest">
+                    出生: {new Date(profile.birth_date).toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-').slice(0, 16)}
+                  </p>
+                )}
               </div>
             </section>
 

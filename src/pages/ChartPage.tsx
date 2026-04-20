@@ -1,23 +1,100 @@
-import { Info, Sparkles, TrendingUp, ShieldCheck } from 'lucide-react';
+import { Info, Sparkles, TrendingUp, ShieldCheck, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState } from 'react';
-
-const PILLARS = [
-  { label: '年柱', stem: '甲', branch: '子', stemColor: 'text-[#81c784]', branchColor: 'text-[#64b5f6]', elements: '木 / 水' },
-  { label: '月柱', stem: '丙', branch: '午', stemColor: 'text-[#ff8a65]', branchColor: 'text-[#ff8a65]', elements: '火 / 火' },
-  { label: '日主', stem: '戊', branch: '申', stemColor: 'text-[#f2c36b]', branchColor: 'text-[#64b5f6]', elements: '土 / 水', highlight: true },
-  { label: '时柱', stem: '庚', branch: '辰', stemColor: 'text-[#cfd8dc]', branchColor: 'text-[#f2c36b]', elements: '金 / 土' },
-];
-
-const ANNUAL_FORTUNES = [
-  { year: '2026年', text: '丙午', color: 'text-[#ff8a65]', sub: '流年值此', analysis: '今年丙午流年，火气极旺，与日主戊土形成火土相生之势。虽然事业压力较大，但贵人运强，适合在稳定中寻求突破。情感方面宜多沟通，避免口舌。' },
-  { year: '2027年', text: '丁未', color: 'text-[#ff8a65]', sub: '展望明岁', analysis: '丁未之年，土气厚重。财运方面有稳步增长的迹象，适合长期投资。事业上需注意团队合作，不可独断专行。身体方面注意脾胃调理。' },
-  { year: '2028年', text: '戊申', color: 'text-[#f2c36b]', sub: '后岁可见', analysis: '戊申流年，申金生水，财源广进。这一年是你的大运交接点，可能会有重大的职业变动或人生转折。凡事宜早做准备，顺势而为。' },
-  { year: '2029年', text: '己酉', color: 'text-[#cfd8dc]', sub: '再而可见', analysis: '己酉之年，金气纯正。食伤生财，灵感迸发，适合从事创意或技术类工作。情感生活丰富多彩，单身者有望脱单。' },
-];
+import { useState, useEffect, useMemo } from 'react';
+import { Solar } from 'lunar-javascript';
+import { fetchWithAuth } from '../services/api';
 
 export default function ChartPage() {
-  const [selectedYear, setSelectedYear] = useState<typeof ANNUAL_FORTUNES[0] | null>(null);
+  const [selectedYear, setSelectedYear] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchWithAuth('/api/user/profile').then(data => {
+      setProfile(data);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  }, []);
+
+  const baziData = useMemo(() => {
+    if (!profile?.birth_date) return null;
+    
+    try {
+      const date = new Date(profile.birth_date);
+      const solar = Solar.fromYmdHms(
+        date.getFullYear(),
+        date.getMonth() + 1,
+        date.getDate(),
+        date.getHours(),
+        date.getMinutes(),
+        0
+      );
+      const lunar = solar.getLunar();
+      const eightChar = lunar.getEightChar();
+
+      const getElement = (gan: string, zhi: string) => {
+        const elements: Record<string, string> = {
+          '甲': '木', '乙': '木', '丙': '火', '丁': '火', '戊': '土', '己': '土', '庚': '金', '辛': '金', '壬': '水', '癸': '水',
+          '子': '水', '丑': '土', '寅': '木', '卯': '木', '辰': '土', '巳': '火', '午': '火', '未': '土', '申': '金', '酉': '金', '戌': '土', '亥': '水'
+        };
+        return `${elements[gan] || '?'} / ${elements[zhi] || '?'}`;
+      };
+
+      const getColor = (char: string) => {
+        const ganElements: Record<string, string> = {
+          '甲': 'text-[#81c784]', '乙': 'text-[#81c784]', 
+          '丙': 'text-[#ff8a65]', '丁': 'text-[#ff8a65]', 
+          '戊': 'text-[#f2c36b]', '己': 'text-[#f2c36b]', 
+          '庚': 'text-[#cfd8dc]', '辛': 'text-[#cfd8dc]', 
+          '壬': 'text-[#64b5f6]', '癸': 'text-[#64b5f6]'
+        };
+        const zhiElements: Record<string, string> = {
+          '寅': 'text-[#81c784]', '卯': 'text-[#81c784]', 
+          '巳': 'text-[#ff8a65]', '午': 'text-[#ff8a65]', 
+          '辰': 'text-[#f2c36b]', '戌': 'text-[#f2c36b]', '丑': 'text-[#f2c36b]', '未': 'text-[#f2c36b]', 
+          '申': 'text-[#cfd8dc]', '酉': 'text-[#cfd8dc]', 
+          '子': 'text-[#64b5f6]', '亥': 'text-[#64b5f6]'
+        };
+        return ganElements[char] || zhiElements[char] || 'text-on-surface';
+      };
+
+      return [
+        { label: '年柱', stem: eightChar.getYearGan(), branch: eightChar.getYearZhi(), stemColor: getColor(eightChar.getYearGan()), branchColor: getColor(eightChar.getYearZhi()), elements: getElement(eightChar.getYearGan(), eightChar.getYearZhi()) },
+        { label: '月柱', stem: eightChar.getMonthGan(), branch: eightChar.getMonthZhi(), stemColor: getColor(eightChar.getMonthGan()), branchColor: getColor(eightChar.getMonthZhi()), elements: getElement(eightChar.getMonthGan(), eightChar.getMonthZhi()) },
+        { label: '日主', stem: eightChar.getDayGan(), branch: eightChar.getDayZhi(), stemColor: getColor(eightChar.getDayGan()), branchColor: getColor(eightChar.getDayZhi()), elements: getElement(eightChar.getDayGan(), eightChar.getDayZhi()), highlight: true },
+        { label: '时柱', stem: eightChar.getTimeGan(), branch: eightChar.getTimeZhi(), stemColor: getColor(eightChar.getTimeGan()), branchColor: getColor(eightChar.getTimeZhi()), elements: getElement(eightChar.getTimeGan(), eightChar.getTimeZhi()) },
+      ];
+    } catch (e) {
+      console.error("Bazi calculation error", e);
+      return null;
+    }
+  }, [profile]);
+
+  const PILLARS_DISPLAY = baziData || [
+    { label: '年柱', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置' },
+    { label: '月柱', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置' },
+    { label: '日主', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置', highlight: true },
+    { label: '时柱', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置' },
+  ];
+
+  const ANNUAL_FORTUNES = [
+    { year: '2026年', text: '丙午', color: 'text-[#ff8a65]', sub: '流年值此', analysis: '今年丙午流年，火气极旺，与命局形成感应。虽然事业压力较大，但贵人运强，适合在稳定中寻求突破。情感方面宜多沟通，避免口舌。' },
+    { year: '2027年', text: '丁未', color: 'text-[#ff8a65]', sub: '展望明岁', analysis: '丁未之年，土气厚重。财运方面有稳步增长的迹象，适合长期投资。事业上需注意团队合作，不可独断专行。身体方面注意脾胃调理。' },
+    { year: '2028年', text: '戊申', color: 'text-[#f2c36b]', sub: '后岁可见', analysis: '戊申流年，申金生水，财源广进。这一年可能是你的一个交接点，可能会有重大的职业变动或人生转折。凡事宜早做准备，顺势而为。' },
+    { year: '2029年', text: '己酉', color: 'text-[#cfd8dc]', sub: '再而可见', analysis: '己酉之年，金气纯正。食伤生财，灵感迸发，适合从事创意或技术类工作。情感生活丰富多彩，单身者有望脱单。' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="animate-spin text-primary" size={40} />
+        <p className="text-primary/60 font-headline font-bold">正在校准星象命盘...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10 pb-24">
@@ -29,8 +106,16 @@ export default function ChartPage() {
         animate={{ opacity: 1, scale: 1 }}
         className="relative overflow-hidden rounded-xl bg-surface-container-low p-8 shadow-2xl bento-texture border border-outline-variant/10"
       >
+        {!profile?.birth_date && (
+          <div className="absolute inset-0 z-20 bg-surface-container-low/60 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
+            <div className="space-y-4">
+              <p className="text-on-surface-variant font-bold">请先在“个人中心-设置”中设置出生日期</p>
+              <div className="text-[10px] text-primary/60 uppercase tracking-widest">开启您的数字化命理旅程</div>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-4 gap-4 items-end">
-          {PILLARS.map((p, idx) => (
+          {PILLARS_DISPLAY.map((p, idx) => (
             <div key={idx} className="flex flex-col items-center space-y-6 relative">
               {p.highlight && (
                 <div className="absolute -inset-x-2 -inset-y-4 bg-primary/5 rounded-xl border border-primary/20 backdrop-blur-sm -z-10"></div>
@@ -49,7 +134,9 @@ export default function ChartPage() {
         <div className="mt-10 pt-8 border-t border-outline-variant/10 flex justify-between items-center">
           <div className="flex gap-4">
             <div className="px-3 py-1 bg-surface-container-highest rounded text-[10px] font-label text-on-surface-variant">乾造 (男)</div>
-            <div className="px-3 py-1 bg-surface-container-highest rounded text-[10px] font-label text-on-surface-variant">公历: 1984-12-23</div>
+            <div className="px-3 py-1 bg-surface-container-highest rounded text-[10px] font-label text-on-surface-variant">
+              公历: {profile?.birth_date ? new Date(profile.birth_date).toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-') : '未设置'}
+            </div>
           </div>
           <motion.div whileHover={{ rotate: 15 }}>
             <Info size={18} className="text-primary/40 cursor-help" />
@@ -57,7 +144,7 @@ export default function ChartPage() {
         </div>
       </motion.section>
 
-      {/* Detailed Analysis Content */}
+      {/* Detailed Analysis Content (Simplified placeholder logic) */}
       <motion.section 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -68,25 +155,28 @@ export default function ChartPage() {
           <h3 className="font-headline font-bold text-lg">命盘深度解析</h3>
         </div>
         <div className="font-body text-sm text-on-surface-variant leading-relaxed text-justify space-y-4">
-          <p>
-            此命盘日主为戊土，生于午月，身旺气足。火、土两行占据主导，命局火旺土焦，格取“正官格”。戊土天性厚重，执着且有韧性，这赋予了你极强的执行力与领导潜质。然而，由于局中金水能量较弱，缺乏足够的润泽与流动，你在处理复杂人际关系时可能稍显僵化。
-          </p>
-          <p>
-            喜用神提取为“水、木”。“水”为财星，代表你的财运与应变能力；“木”为官杀，代表你的事业深度。目前的五年大运正值金火交战之期，事业面临关键转型点，虽有摩擦之痛，但亦是跨越阶层的绝佳契机。
-          </p>
-          <p>
-            生平运势多得长辈或贵人提携。建议在日常生活中多穿青、黑、深蓝色系的服饰以补足木水能量。总体而言，此乃“中晚发之命”，建议三十岁前扎实磨砺技术，四十岁后厚积薄发，必显峥嵘之象。
-          </p>
+          {!profile?.birth_date ? (
+             <p className="italic opacity-60">请完成出生日期设置以解锁 AI 深度解析内容。</p>
+          ) : (
+            <>
+              <p>
+                此命盘日主为{PILLARS_DISPLAY[2].stem}木，生于{PILLARS_DISPLAY[1].branch}月。根据干支五行分布，您属于“{PILLARS_DISPLAY[2].stem}金命”或对应五行属性。这赋予了你极强的执行力与韧性。
+              </p>
+              <p>
+                目前的五年大运正值关键转型点，虽有挑战，但亦是跨越阶层的绝佳契机。建议在日常生活中根据五行喜忌调整心态与环境。
+              </p>
+            </>
+          )}
         </div>
       </motion.section>
 
       {/* Analysis Bento */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: '格局', value: '正官格', color: 'text-on-surface' },
-          { label: '辅星', value: '偏印辅', color: 'text-on-surface' },
-          { label: '喜用', value: '水木', color: 'text-primary' },
-          { label: '忌讳', value: '火土', color: 'text-error' },
+          { label: '格局', value: profile?.birth_date ? '正在分析' : '—', color: 'text-on-surface' },
+          { label: '辅星', value: profile?.birth_date ? '正在计算' : '—', color: 'text-on-surface' },
+          { label: '喜用', value: profile?.birth_date ? '水/木' : '—', color: 'text-primary' },
+          { label: '忌讳', value: profile?.birth_date ? '火/土' : '—', color: 'text-error' },
         ].map((item, idx) => (
           <motion.div 
             key={idx}
@@ -108,7 +198,6 @@ export default function ChartPage() {
           <div className="h-px flex-1 mx-6 bg-gradient-to-r from-outline-variant/30 to-transparent"></div>
         </div>
         
-        {/* Responsive Grid for cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {ANNUAL_FORTUNES.map((item, idx) => (
             <motion.div 
@@ -126,7 +215,6 @@ export default function ChartPage() {
           ))}
         </div>
 
-        {/* Selected Year Analysis */}
         <AnimatePresence mode="wait">
           {selectedYear && (
             <motion.div 
