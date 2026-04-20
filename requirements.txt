@@ -7,3 +7,4 @@ google-genai
 python-dotenv
 pyjwt
 passlib[bcrypt]
+bcrypt==3.2.0
