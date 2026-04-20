@@ -154,12 +154,18 @@ export default function CalendarPage() {
           
           <div className="flex gap-8 relative z-10">
             <div className="space-y-1">
-              <span className="text-[10px] font-black text-green-500 uppercase tracking-widest block">宜</span>
-              <p className="text-sm font-bold text-on-surface">{currentFortune.yi.join(' ') || '诸事不宜'}</p>
+              <span className="text-[10px] font-black text-green-500 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                宜：
+              </span>
+              <p className="text-sm font-bold text-on-surface ml-3">{currentFortune.yi.join(' ') || '诸事不宜'}</p>
             </div>
             <div className="space-y-1">
-              <span className="text-[10px] font-black text-error uppercase tracking-widest block">忌</span>
-              <p className="text-sm font-bold text-on-surface">{currentFortune.ji.join(' ') || '诸事不忌'}</p>
+              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                忌：
+              </span>
+              <p className="text-sm font-bold text-on-surface ml-3">{currentFortune.ji.join(' ') || '诸事不忌'}</p>
             </div>
           </div>
 
@@ -231,12 +237,14 @@ export default function CalendarPage() {
                           className="absolute bottom-full mb-2 w-40 bg-surface-container-highest/95 backdrop-blur-md p-3 rounded-xl shadow-2xl border border-outline-variant/20 z-[100] pointer-events-none"
                         >
                           <div className="space-y-2 text-left">
-                            <div className="flex gap-2 items-start">
+                            <div className="flex gap-2 items-center">
+                              <span className="w-1 h-1 rounded-full bg-green-500" />
                               <span className="text-green-400 font-bold text-[9px] bg-green-500/10 px-1 rounded h-4 flex items-center">宜</span>
                               <span className="text-[10px] text-on-surface-variant font-medium leading-tight">{d.yi.join(', ') || '诸事不宜'}</span>
                             </div>
-                            <div className="flex gap-2 items-start">
-                              <span className="text-error font-bold text-[9px] bg-error/10 px-1 rounded h-4 flex items-center">忌</span>
+                            <div className="flex gap-2 items-center">
+                              <span className="w-1 h-1 rounded-full bg-red-500" />
+                              <span className="text-red-400 font-bold text-[9px] bg-red-500/10 px-1 rounded h-4 flex items-center">忌</span>
                               <span className="text-[10px] text-on-surface-variant font-medium leading-tight">{d.ji.join(', ') || '诸事不忌'}</span>
                             </div>
                           </div>
