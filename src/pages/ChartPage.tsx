@@ -1,10 +1,43 @@
-import { Info, Sparkles, TrendingUp, ShieldCheck, Loader2 } from 'lucide-react';
+import { Info, Sparkles, TrendingUp, ShieldCheck, Loader2, Edit3, Save, X, Mars, Venus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useMemo } from 'react';
 import { Solar } from 'lunar-javascript';
+import { fetchWithAuth } from '../services/api';
+import { cn } from '../lib/utils';
 
-export default function ChartPage({ profile }: { profile: any }) {
+export default function ChartPage({ profile, onProfileUpdate }: { profile: any, onProfileUpdate: () => void }) {
   const [selectedYear, setSelectedYear] = useState<any>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editBirthDate, setEditBirthDate] = useState('');
+  const [editGender, setEditGender] = useState<'male' | 'female'>('male');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const startEditing = () => {
+    setEditBirthDate(profile?.birth_date ? new Date(profile.birth_date).toISOString().slice(0, 16) : '');
+    setEditGender(profile?.gender || 'male');
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await fetchWithAuth('/api/user/profile', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          nickname: profile?.nickname,
+          birth_date: editBirthDate ? new Date(editBirthDate).toISOString() : null,
+          gender: editGender
+        })
+      });
+      onProfileUpdate();
+      setIsEditing(false);
+    } catch (err) {
+      console.error(err);
+      alert('保存失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const baziData = useMemo(() => {
     if (!profile?.birth_date) return null;
@@ -38,12 +71,6 @@ export default function ChartPage({ profile }: { profile: any }) {
           '庚': 'text-[#cfd8dc]', '辛': 'text-[#cfd8dc]', 
           '壬': 'text-[#64b5f6]', '癸': 'text-[#64b5f6]'
         };
-        const zhiElements: Record<string, string> = {
-          '寅': 'text-[#81c784]', '卯': 'text-[#81c784]', 
-          '巳': 'text-[#ff8a65]', '午': 'text-[#ff8a65]', 
-          '辰': 'text-[#f2c36b]', '戌': 'text-[#f2c36b]', '丑': 'text-[#f2c36b]', '未': 'text-[#f2c36b]', 
-          '申': 'text-[#cfd8dc]', '酉': 'text-[#cfd8dc]', 
-          '子': 'text-[#64b5f6]', '亥': 'text-[#64b5f6]'
         };
         return ganElements[char] || zhiElements[char] || 'text-on-surface';
       };
@@ -76,7 +103,78 @@ export default function ChartPage({ profile }: { profile: any }) {
 
   return (
     <div className="space-y-10 pb-24">
-      <h2 className="text-4xl font-headline font-extrabold tracking-tight text-primary">八字命盘</h2>
+      <div className="flex justify-between items-end">
+        <h2 className="text-4xl font-headline font-extrabold tracking-tight text-primary">八字命盘</h2>
+        {!isEditing && (
+          <button 
+            onClick={startEditing}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-highest/50 text-primary/60 hover:text-primary transition-colors text-xs font-bold"
+          >
+            <Edit3 size={14} />
+            修改出生信息
+          </button>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {isEditing && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-surface-container-low p-6 rounded-2xl border border-primary/20 space-y-6"
+          >
+            <div className="flex justify-between items-center">
+              <h4 className="text-sm font-bold text-primary">快速修改生辰</h4>
+              <button onClick={() => setIsEditing(false)} className="text-on-surface-variant/40 hover:text-on-surface-variant">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">性别</label>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setEditGender('male')}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border transition-all text-sm font-bold",
+                      editGender === 'male' ? "bg-primary/10 border-primary text-primary" : "bg-surface-container-highest border-transparent text-on-surface-variant/40"
+                    )}
+                  >
+                    <Mars size={16} /> 乾造
+                  </button>
+                  <button 
+                    onClick={() => setEditGender('female')}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border transition-all text-sm font-bold",
+                      editGender === 'female' ? "bg-primary/10 border-primary text-primary" : "bg-surface-container-highest border-transparent text-on-surface-variant/40"
+                    )}
+                  >
+                    <Venus size={16} /> 坤造
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">出生日期 (精确到分钟)</label>
+                <input 
+                  type="datetime-local" 
+                  className="w-full bg-surface-container-highest px-4 py-3 rounded-xl focus:outline-none focus:ring-1 ring-primary/30 transition-all text-sm"
+                  value={editBirthDate}
+                  onChange={(e) => setEditBirthDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <button 
+              onClick={handleSave}
+              disabled={isSaving}
+              className="w-full py-4 bg-primary text-background rounded-xl font-black flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+              立即同步命盘
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Four Pillars Card */}
       <motion.section 

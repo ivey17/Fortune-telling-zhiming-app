@@ -59,10 +59,10 @@ export default function App() {
   const renderPage = () => {
     switch (activeTab) {
       case 'fortune': return <FortunePage />;
-      case 'chart': return <ChartPage profile={profile} />;
+      case 'chart': return <ChartPage profile={profile} onProfileUpdate={fetchProfile} />;
       case 'calendar': return <CalendarPage />;
       case 'divination': return <DivinationPage />;
-      case 'profile': return <ProfilePage profile={profile} onSettingsClick={() => setShowSettings(true)} />;
+      case 'profile': return <ProfilePage profile={profile} onProfileUpdate={fetchProfile} onSettingsClick={() => setShowSettings(true)} />;
       default: return <FortunePage />;
     }
   };

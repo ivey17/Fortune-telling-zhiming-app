@@ -145,9 +145,6 @@ export default function CalendarPage() {
                   {currentFortune.isLucky ? '大吉' : '中平'}
                 </span>
               </div>
-              <p className="text-xs text-on-surface-variant font-label mt-1">
-                实时北京时间: {currentDate.toLocaleTimeString('zh-CN', { hour12: false })}
-              </p>
             </div>
           </div>
           
