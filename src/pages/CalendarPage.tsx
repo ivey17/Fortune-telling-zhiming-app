@@ -19,16 +19,13 @@ export default function CalendarPage() {
   const [selectedDay, setSelectedDay] = useState(new Date());
   const [selectedResult, setSelectedResult] = useState<{ label: string, dates: { month: string, day: number }[] } | null>(null);
 
-  // Update current time every minute for the fortune card
+  // Update current time every 10 seconds for the fortune card
   useEffect(() => {
     const timer = setInterval(() => {
-      const now = new Date();
-      if (now.getMinutes() !== currentDate.getMinutes()) {
-        setCurrentDate(now);
-      }
+      setCurrentDate(new Date());
     }, 10000);
     return () => clearInterval(timer);
-  }, [currentDate]);
+  }, []);
 
   const lunarData = useMemo(() => {
     const solar = Solar.fromDate(selectedDay);
@@ -46,18 +43,24 @@ export default function CalendarPage() {
   }, [selectedDay]);
 
   const currentFortune = useMemo(() => {
-    const solar = Solar.fromDate(currentDate);
+    // Use precise YMD HMS for real-time Shichen calculation
+    const solar = Solar.fromYmdHms(
+      currentDate.getFullYear(),
+      currentDate.getMonth() + 1,
+      currentDate.getDate(),
+      currentDate.getHours(),
+      currentDate.getMinutes(),
+      currentDate.getSeconds()
+    );
     const lunar = solar.getLunar();
     const timeZhi = lunar.getTimeZhi();
     
-    // In a real app, time fortune depends on many factors. 
-    // Here we use a simplified logic based on the current hour's stem/zhi relationship or common patterns.
     const hourYi = lunar.getTimeYi();
     const hourJi = lunar.getTimeJi();
     
     return {
       hour: timeZhi + '时',
-      isLucky: hourYi.includes('无') ? false : hourYi.length > 0,
+      isLucky: hourYi.length > 0 && !hourYi.includes('无'),
       yi: hourYi.slice(0, 3),
       ji: hourJi.slice(0, 3)
     };
