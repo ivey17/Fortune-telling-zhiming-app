@@ -11,11 +11,12 @@ class ProfileUpdateRequest(BaseModel):
     nickname: Optional[str] = None
     birth_date: Optional[str] = None
     gender: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 @router.get("/profile")
 async def get_profile(user: CurrentUser = Depends(get_current_user)):
     try:
-        res = supabase.table("app_users").select("id, phone, nickname, membership_level, created_at, birth_date, gender").eq("id", user.id).execute()
+        res = supabase.table("app_users").select("id, phone, nickname, membership_level, created_at, birth_date, gender, avatar_url").eq("id", user.id).execute()
         if res.data and len(res.data) > 0:
             return res.data[0]
         else:
@@ -24,7 +25,8 @@ async def get_profile(user: CurrentUser = Depends(get_current_user)):
                 "nickname": "知命行者",
                 "membership_level": "none",
                 "birth_date": None,
-                "gender": "male"
+                "gender": "male",
+                "avatar_url": None
             }
     except Exception as e:
         print(f"Error fetching profile: {e}")
@@ -33,7 +35,8 @@ async def get_profile(user: CurrentUser = Depends(get_current_user)):
             "nickname": "知命行者",
             "membership_level": "none",
             "birth_date": None,
-            "gender": "male"
+            "gender": "male",
+            "avatar_url": None
         }
 
 @router.post("/profile")
@@ -46,6 +49,8 @@ async def update_profile(req: ProfileUpdateRequest, user: CurrentUser = Depends(
             update_data["birth_date"] = req.birth_date
         if req.gender is not None:
             update_data["gender"] = req.gender
+        if req.avatar_url is not None:
+            update_data["avatar_url"] = req.avatar_url
             
         if not update_data:
             return {"message": "No data to update"}

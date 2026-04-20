@@ -6,6 +6,7 @@ from core.security import get_current_user
 from core.database import supabase
 import json
 from datetime import datetime
+from typing import Optional
 
 router = APIRouter()
 
@@ -24,6 +25,11 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: list[ChatMessage] = []
+
+class SaveDivinationRequest(BaseModel):
+    lines: list[int]
+    interpretation: str
+    title: Optional[str] = "起卦测算"
 
 @router.post("/fortune")
 async def ask_fortune(req: AIQuery, user=Depends(get_current_user)):
@@ -89,4 +95,22 @@ async def ask_divination(req: AIQuery, user=Depends(get_current_user)):
 
         return {"content": answer}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/save-divination")
+async def save_divination(req: SaveDivinationRequest, user=Depends(get_current_user)):
+    try:
+        history_data = {
+            "user_id": user.id,
+            "title": req.title,
+            "type": "divination",
+            "messages": json.dumps([
+                {"role": "ai", "content": req.interpretation}
+            ]),
+            "created_at": datetime.now().isoformat()
+        }
+        supabase.table("divination_chat_history").insert(history_data).execute()
+        return {"message": "Saved successfully"}
+    except Exception as e:
+        print(f"Error saving divination: {e}")
         raise HTTPException(status_code=500, detail=str(e))

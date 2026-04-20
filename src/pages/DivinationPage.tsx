@@ -2,8 +2,9 @@ import { Send, Languages, Sparkles, RotateCcw, User, Loader2 } from 'lucide-reac
 import { motion, useAnimation, AnimatePresence } from 'motion/react';
 import { useState, useRef, useEffect } from 'react';
 import { interpretHexagram } from '../services/geminiService';
-import { askDivinationAI } from '../services/aiService';
+import { askDivinationAI, saveDivination } from '../services/aiService';
 import { cn } from '../lib/utils';
+import { generateLiuyao, getHexagramInfo, HexagramInfo } from '../lib/iching';
 
 interface Message {
   role: 'user' | 'ai';
@@ -14,7 +15,9 @@ export default function DivinationPage() {
   const [lines, setLines] = useState<number[]>([]); // 6, 7, 8, 9
   const [isCasting, setIsCasting] = useState(false);
   const [interpretation, setInterpretation] = useState<string | null>(null);
+  const [hexInfo, setHexInfo] = useState<HexagramInfo | null>(null);
   const [isInterpreting, setIsInterpreting] = useState(false);
+  const [isAiInterpreting, setIsAiInterpreting] = useState(false);
   
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -34,9 +37,10 @@ export default function DivinationPage() {
     if (isCasting) return;
     setIsCasting(true);
     setInterpretation(null);
+    setHexInfo(null);
     setLines([]);
 
-    const fixedLines = [7, 7, 7, 7, 7, 7];
+    const newLines = generateLiuyao();
 
     await Promise.all(coinControls.map((ctrl, i) => 
       ctrl.start({
@@ -46,17 +50,31 @@ export default function DivinationPage() {
       })
     ));
 
-    setLines(fixedLines);
+    setLines(newLines);
     setIsCasting(false);
     
-    setIsInterpreting(true);
+    // Simple interpretation
+    const info = getHexagramInfo(newLines);
+    setHexInfo(info);
+    const simpleResult = `【${info.name}】（${info.symbol}）\n${info.meaning}\n\n解读：${info.description}`;
+    setInterpretation(simpleResult);
+    
+    // Save to history
+    saveDivination(newLines, simpleResult, `起卦：${info.name}`);
+  };
+
+  const getDeepAnalysis = async () => {
+    if (isAiInterpreting || !lines.length) return;
+    setIsAiInterpreting(true);
     try {
-      const result = await interpretHexagram(fixedLines);
-      setInterpretation(result);
+      const aiResult = await interpretHexagram(lines);
+      setInterpretation(prev => `${prev}\n\n--- 深度分析 ---\n\n${aiResult}`);
+      // Update saved history with deep analysis? For now just append in state
     } catch (e) {
-      setInterpretation("（天机暂晦）解读因异象受阻，请复起一卦。");
+      setInterpretation(prev => `${prev}\n\n（深度解析因异象受阻）`);
+    } finally {
+      setIsAiInterpreting(false);
     }
-    setIsInterpreting(false);
   };
 
   const handleSendMessage = async () => {
@@ -226,17 +244,28 @@ export default function DivinationPage() {
             <div className="bg-surface-container-high p-8 rounded-3xl border border-primary/20 shadow-xl space-y-4 mb-20 h-auto">
               <div className="flex items-center gap-3 text-primary border-b border-primary/10 pb-4">
                 <Sparkles size={20} />
-                <h3 className="font-headline font-bold text-lg">大师解析</h3>
+                <h3 className="font-headline font-bold text-lg">卦象解析</h3>
               </div>
-              {isInterpreting ? (
+              <div className="font-body text-on-surface/90 leading-relaxed whitespace-pre-wrap break-words text-sm md:text-base">
+                {interpretation}
+              </div>
+              
+              {!isAiInterpreting && !interpretation?.includes('深度分析') && (
+                <button 
+                  onClick={getDeepAnalysis}
+                  className="w-full mt-6 py-4 bg-primary/10 border border-primary/20 text-primary rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-primary/20 transition-all"
+                >
+                  <Sparkles size={16} />
+                  大师深度分析
+                </button>
+              )}
+
+              {isAiInterpreting && (
                 <div className="flex flex-col gap-4 py-4 animate-pulse">
                   <div className="h-4 bg-primary/10 rounded w-3/4" />
                   <div className="h-4 bg-primary/10 rounded w-full" />
                   <div className="h-4 bg-primary/10 rounded w-1/2" />
-                </div>
-              ) : (
-                <div className="font-body text-on-surface/90 leading-relaxed whitespace-pre-wrap break-words text-sm md:text-base">
-                  {interpretation}
+                  <p className="text-center text-xs text-primary/40">AI 正在深度感应天机...</p>
                 </div>
               )}
             </div>

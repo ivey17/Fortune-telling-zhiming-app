@@ -57,3 +57,17 @@ export async function askDivinationAI(query: string, hexagramData?: any): Promis
     };
   }
 }
+
+/**
+ * Saves a divination result to history.
+ */
+export async function saveDivination(lines: number[], interpretation: string, title?: string): Promise<void> {
+  try {
+    await fetchWithAuth('/api/ai/save-divination', {
+      method: 'POST',
+      body: JSON.stringify({ lines, interpretation, title }),
+    });
+  } catch (error) {
+    console.error("Save Divination Error:", error);
+  }
+}

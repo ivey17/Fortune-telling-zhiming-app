@@ -21,5 +21,6 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     throw new Error(errorData?.detail || 'Request failed');
   }
 
-  return response.json();
+  const text = await response.text();
+  return text ? JSON.parse(text) : {};
 };

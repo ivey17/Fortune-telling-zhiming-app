@@ -20,6 +20,11 @@ export default function ProfilePage({ profile, onProfileUpdate, onSettingsClick 
   const [editBirthDate, setEditBirthDate] = useState('');
   const [editGender, setEditGender] = useState<'male' | 'female'>('male');
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedAvatar, setSelectedAvatar] = useState<string>('');
+
+  const AVATARS = [
+    'Lucky', 'Fortune', 'Wisdom', 'Jade', 'Dragon', 'Phoenix', 'Lotus', 'Zen', 'Aura', 'Spirit'
+  ];
 
   useEffect(() => {
     if (profile?.membership_level && profile?.membership_level !== 'none') {
@@ -57,6 +62,7 @@ export default function ProfilePage({ profile, onProfileUpdate, onSettingsClick 
   const startEditing = () => {
     setEditBirthDate(profile?.birth_date ? new Date(profile.birth_date).toISOString().slice(0, 16) : '');
     setEditGender(profile?.gender || 'male');
+    setSelectedAvatar(profile?.avatar_url || profile?.nickname || 'Guest');
     setIsEditing(true);
   };
 
@@ -68,7 +74,8 @@ export default function ProfilePage({ profile, onProfileUpdate, onSettingsClick 
         body: JSON.stringify({ 
           nickname: profile?.nickname,
           birth_date: editBirthDate ? new Date(editBirthDate).toISOString() : null,
-          gender: editGender
+          gender: editGender,
+          avatar_url: selectedAvatar
         })
       });
       onProfileUpdate();
@@ -94,7 +101,7 @@ export default function ProfilePage({ profile, onProfileUpdate, onSettingsClick 
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary-container p-0.5 shadow-xl">
                     <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-background/20">
                       <img 
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile?.nickname || 'Guest'}`} 
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile?.avatar_url || profile?.nickname || 'Guest'}`} 
                         alt="avatar" 
                         className="w-full h-full object-cover"
                       />
@@ -137,6 +144,26 @@ export default function ProfilePage({ profile, onProfileUpdate, onSettingsClick 
                         <X size={18} />
                       </button>
                     </div>
+                    
+                    {/* Avatar Selection */}
+                    <div className="space-y-3">
+                      <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">更换头像</label>
+                      <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+                        {AVATARS.map((seed) => (
+                          <button
+                            key={seed}
+                            onClick={() => setSelectedAvatar(seed)}
+                            className={cn(
+                              "w-16 h-16 rounded-xl flex-shrink-0 transition-all border-2 overflow-hidden",
+                              selectedAvatar === seed ? "border-primary scale-110 shadow-lg" : "border-transparent opacity-60 hover:opacity-100"
+                            )}
+                          >
+                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`} alt="avatar-option" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">性别</label>
