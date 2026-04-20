@@ -8,32 +8,30 @@ import ChartPage from './pages/ChartPage';
 import CalendarPage from './pages/CalendarPage';
 import DivinationPage from './pages/DivinationPage';
 import ProfilePage from './pages/ProfilePage';
-import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
+import OnboardingOverlay from './components/OnboardingOverlay';
 
 import { fetchWithAuth } from './services/api';
+import { useUser } from './contexts/UserContext';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
   const [activeTab, setActiveTab] = useState<Tab>('fortune');
-  const [prevTab, setPrevTab] = useState<Tab>('fortune');
-  const [showSettings, setShowSettings] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
-
-  const fetchProfile = async () => {
-    try {
-      const data = await fetchWithAuth('/api/user/profile');
-      setProfile(data);
-    } catch (error) {
-      console.error("Failed to fetch profile", error);
-    }
-  };
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const { profile, refreshAll, clearUser } = useUser();
 
   useEffect(() => {
     if (isLoggedIn) {
-      fetchProfile();
+      refreshAll();
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, refreshAll]);
+
+  useEffect(() => {
+    // Only show onboarding if logged in and profile is loaded but has no birth_date
+    if (isLoggedIn && profile && !profile.birth_date) {
+      setShowOnboarding(true);
+    }
+  }, [isLoggedIn, profile]);
 
   useEffect(() => {
     // Hide default scrollbar globally
@@ -47,9 +45,7 @@ export default function App() {
   }, []);
 
   const handleTabChange = (newTab: Tab) => {
-    setPrevTab(activeTab);
     setActiveTab(newTab);
-    setShowSettings(false); // Close settings drawer when switching tabs
   };
 
   if (!isLoggedIn) {
@@ -59,10 +55,10 @@ export default function App() {
   const renderPage = () => {
     switch (activeTab) {
       case 'fortune': return <FortunePage />;
-      case 'chart': return <ChartPage profile={profile} onProfileUpdate={fetchProfile} />;
+      case 'chart': return <ChartPage onGoToProfile={() => setActiveTab('profile')} />;
       case 'calendar': return <CalendarPage />;
       case 'divination': return <DivinationPage />;
-      case 'profile': return <ProfilePage profile={profile} onProfileUpdate={fetchProfile} onSettingsClick={() => setShowSettings(true)} />;
+      case 'profile': return <ProfilePage />;
       default: return <FortunePage />;
     }
   };
@@ -76,40 +72,9 @@ export default function App() {
       </div>
 
       <TopBar 
-        onMenuClick={() => setShowSettings(true)} 
         onProfileClick={() => setActiveTab('profile')} 
       />
 
-      <AnimatePresence>
-        {showSettings && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowSettings(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
-            />
-            <motion.div
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 left-0 bottom-0 w-[85%] max-w-sm bg-background/95 backdrop-blur-xl border-r border-outline-variant/20 z-[70] shadow-2xl overflow-y-auto px-6 py-12 no-scrollbar"
-            >
-              <SettingsPage 
-                onBack={() => setShowSettings(false)} 
-                onProfileUpdate={fetchProfile}
-                onLogout={() => {
-                  localStorage.removeItem('token');
-                  setIsLoggedIn(false);
-                  setShowSettings(false);
-                }}
-              />
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       <main className="pt-24 pb-32 px-6 max-w-screen-md mx-auto">
         <AnimatePresence mode="wait">
@@ -124,6 +89,15 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      <AnimatePresence>
+        {showOnboarding && (
+          <OnboardingOverlay onComplete={() => {
+            setShowOnboarding(false);
+            refreshAll();
+          }} />
+        )}
+      </AnimatePresence>
 
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
     </div>

@@ -16,7 +16,15 @@ class ProfileUpdateRequest(BaseModel):
 @router.get("/profile")
 async def get_profile(user: CurrentUser = Depends(get_current_user)):
     try:
-        res = supabase.table("app_users").select("id, phone, nickname, membership_level, created_at, birth_date, gender, avatar_url").eq("id", user.id).execute()
+        # Try to select with avatar_url first
+        try:
+            res = supabase.table("app_users").select("id, phone, nickname, membership_level, created_at, birth_date, gender, avatar_url").eq("id", user.id).execute()
+        except Exception:
+            # Fallback if avatar_url column doesn't exist
+            res = supabase.table("app_users").select("id, phone, nickname, membership_level, created_at, birth_date, gender").eq("id", user.id).execute()
+            if res.data:
+                res.data[0]["avatar_url"] = None
+                
         if res.data and len(res.data) > 0:
             return res.data[0]
         else:
@@ -55,7 +63,17 @@ async def update_profile(req: ProfileUpdateRequest, user: CurrentUser = Depends(
         if not update_data:
             return {"message": "No data to update"}
             
-        supabase.table("app_users").update(update_data).eq("id", user.id).execute()
+        try:
+            supabase.table("app_users").update(update_data).eq("id", user.id).execute()
+        except Exception as e:
+            if "avatar_url" in str(e) and "avatar_url" in update_data:
+                # Retry without avatar_url if the column is missing
+                del update_data["avatar_url"]
+                if update_data:
+                    supabase.table("app_users").update(update_data).eq("id", user.id).execute()
+            else:
+                raise e
+                
         return {"message": "Profile updated successfully"}
     except Exception as e:
         print(f"Error updating profile: {e}")

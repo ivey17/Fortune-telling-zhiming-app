@@ -5,6 +5,7 @@ import { interpretHexagram } from '../services/geminiService';
 import { askDivinationAI, saveDivination } from '../services/aiService';
 import { cn } from '../lib/utils';
 import { generateLiuyao, getHexagramInfo, HexagramInfo } from '../lib/iching';
+import ZenLoader from '../components/ZenLoader';
 
 interface Message {
   role: 'user' | 'ai';
@@ -110,11 +111,6 @@ export default function DivinationPage() {
         className="flex justify-between items-center"
       >
         <h2 className="text-4xl font-headline font-black tracking-tight text-primary uppercase">占卜问卦</h2>
-        {(lines.length > 0 || messages.length > 0) && (
-          <button onClick={reset} className="p-2 text-primary/60 hover:text-primary transition-colors">
-            <RotateCcw size={20} />
-          </button>
-        )}
       </motion.section>
 
       {/* Intro Chat */}
@@ -261,12 +257,7 @@ export default function DivinationPage() {
               )}
 
               {isAiInterpreting && (
-                <div className="flex flex-col gap-4 py-4 animate-pulse">
-                  <div className="h-4 bg-primary/10 rounded w-3/4" />
-                  <div className="h-4 bg-primary/10 rounded w-full" />
-                  <div className="h-4 bg-primary/10 rounded w-1/2" />
-                  <p className="text-center text-xs text-primary/40">AI 正在深度感应天机...</p>
-                </div>
+                <ZenLoader message="AI 正在深度感应天机..." />
               )}
             </div>
           </motion.section>

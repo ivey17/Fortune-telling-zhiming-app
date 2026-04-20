@@ -1,43 +1,30 @@
 import { Info, Sparkles, TrendingUp, ShieldCheck, Loader2, Edit3, Save, X, Mars, Venus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Solar } from 'lunar-javascript';
 import { fetchWithAuth } from '../services/api';
 import { cn } from '../lib/utils';
+import { useUser } from '../contexts/UserContext';
 
-export default function ChartPage({ profile, onProfileUpdate }: { profile: any, onProfileUpdate: () => void }) {
+export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void }) {
+  const { profile } = useUser();
   const [selectedYear, setSelectedYear] = useState<any>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editBirthDate, setEditBirthDate] = useState('');
-  const [editGender, setEditGender] = useState<'male' | 'female'>('male');
-  const [isSaving, setIsSaving] = useState(false);
 
-  const startEditing = () => {
-    setEditBirthDate(profile?.birth_date ? new Date(profile.birth_date).toISOString().slice(0, 16) : '');
-    setEditGender(profile?.gender || 'male');
-    setIsEditing(true);
-  };
+  // 直接从 localStorage 读取，并监听 storage 事件以实现实时同步
+  const [hideBirth, setHideBirth] = useState<boolean>(
+    () => localStorage.getItem('hideBirth') === 'true'
+  );
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await fetchWithAuth('/api/user/profile', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          nickname: profile?.nickname,
-          birth_date: editBirthDate ? new Date(editBirthDate).toISOString() : null,
-          gender: editGender
-        })
-      });
-      onProfileUpdate();
-      setIsEditing(false);
-    } catch (err) {
-      console.error(err);
-      alert('保存失败');
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  useEffect(() => {
+    // 每次组件挂载/Tab 切换时重新读取最新值
+    setHideBirth(localStorage.getItem('hideBirth') === 'true');
+
+    const onStorage = () => {
+      setHideBirth(localStorage.getItem('hideBirth') === 'true');
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const baziData = useMemo(() => {
     if (!profile?.birth_date) return null;
@@ -54,6 +41,76 @@ export default function ChartPage({ profile, onProfileUpdate }: { profile: any, 
       );
       const lunar = solar.getLunar();
       const eightChar = lunar.getEightChar();
+
+      // Calculation for Pattern (格局)
+      const getPattern = () => {
+        const monthZhi = eightChar.getMonthZhi();
+        const dayGan = eightChar.getDayGan();
+        
+        // Simplified pattern recognition based on Month Branch's hidden stems
+        const zhiHideGans: Record<string, string[]> = {
+          '子': ['癸'], '丑': ['己', '癸', '辛'], '寅': ['甲', '丙', '戊'], '卯': ['乙'],
+          '辰': ['戊', '乙', '癸'], '巳': ['丙', '庚', '戊'], '午': ['丁', '己'], '未': ['己', '丁', '乙'],
+          '申': ['庚', '壬', '戊'], '酉': ['辛'], '戌': ['戊', '辛', '丁'], '亥': ['壬', '甲']
+        };
+
+        const hiddenGans = zhiHideGans[monthZhi] || [];
+        const mainHiddenGan = hiddenGans[0];
+        
+        const getShiShen = (gan: string, dayGan: string) => {
+          const relations: Record<string, Record<string, string>> = {
+            '甲': { '甲': '比肩', '乙': '劫财', '丙': '食神', '丁': '伤官', '戊': '偏财', '己': '正财', '庚': '七杀', '辛': '正官', '壬': '偏印', '癸': '正印' },
+            '乙': { '甲': '劫财', '乙': '比肩', '丙': '伤官', '丁': '食神', '戊': '正财', '己': '偏财', '庚': '正官', '辛': '七杀', '壬': '正印', '癸': '偏印' },
+            '丙': { '甲': '偏印', '乙': '正印', '丙': '比肩', '丁': '劫财', '戊': '食神', '己': '伤官', '庚': '偏财', '辛': '正财', '壬': '七杀', '癸': '正官' },
+            '丁': { '甲': '正印', '乙': '偏印', '丙': '劫财', '丁': '比肩', '戊': '伤官', '己': '食神', '庚': '正财', '辛': '偏财', '壬': '正官', '癸': '七杀' },
+            '戊': { '甲': '七杀', '乙': '正官', '丙': '偏印', '丁': '正印', '戊': '比肩', '己': '劫财', '庚': '食神', '辛': '伤官', '壬': '偏财', '癸': '正财' },
+            '己': { '甲': '正官', '乙': '七杀', '丙': '正印', '丁': '偏印', '戊': '劫财', '己': '比肩', '庚': '伤官', '辛': '食神', '壬': '正财', '癸': '偏财' },
+            '庚': { '甲': '偏财', '乙': '正财', '丙': '七杀', '丁': '正官', '戊': '偏印', '己': '正印', '庚': '比肩', '辛': '劫财', '壬': '食神', '癸': '伤官' },
+            '辛': { '甲': '正财', '乙': '偏财', '丙': '正官', '丁': '七杀', '戊': '正印', '己': '偏印', '庚': '劫财', '辛': '比肩', '壬': '伤官', '癸': '食神' },
+            '壬': { '甲': '食神', '乙': '伤官', '丙': '偏财', '丁': '正财', '戊': '七杀', '己': '正官', '庚': '偏印', '辛': '正印', '壬': '比肩', '癸': '劫财' },
+            '癸': { '甲': '伤官', '乙': '食神', '丙': '正财', '丁': '偏财', '戊': '正官', '己': '七杀', '庚': '正印', '辛': '偏印', '壬': '劫财', '癸': '比肩' },
+          };
+          return relations[dayGan]?.[gan] || '普通';
+        };
+
+        const pattern = getShiShen(mainHiddenGan, dayGan);
+        return pattern === '普通' ? '建禄格' : `${pattern}格`;
+      };
+
+      // Calculation for Shen Sha (Stars)
+      const getStars = () => {
+        const stars: string[] = [];
+        const dayGan = eightChar.getDayGan();
+        const yearZhi = eightChar.getYearZhi();
+        const monthZhi = eightChar.getMonthZhi();
+        const dayZhi = eightChar.getDayZhi();
+        const timeZhi = eightChar.getTimeZhi();
+        
+        // Tian Yi
+        const tianYiMap: Record<string, string[]> = {
+          '甲': ['丑', '未'], '戊': ['丑', '未'], '庚': ['丑', '未'],
+          '乙': ['子', '申'], '己': ['子', '申'],
+          '丙': ['亥', '酉'], '丁': ['亥', '酉'],
+          '壬': ['卯', '巳'], '癸': ['卯', '巳'],
+          '辛': ['午', '寅']
+        };
+        const ty = tianYiMap[dayGan] || [];
+        if ([yearZhi, monthZhi, dayZhi, timeZhi].some(z => ty.includes(z))) stars.push('天乙贵人');
+
+        // Wen Chang
+        const wenChangMap: Record<string, string> = { '甲': '巳', '乙': '午', '丙': '申', '丁': '酉', '戊': '申', '己': '酉', '庚': '亥', '辛': '子', '壬': '寅', '癸': '卯' };
+        if ([yearZhi, monthZhi, dayZhi, timeZhi].includes(wenChangMap[dayGan])) stars.push('文昌贵人');
+
+        // Tao Hua
+        const taoHuaMap: Record<string, string> = { '寅': '卯', '午': '卯', '戌': '卯', '申': '酉', '子': '酉', '辰': '酉', '亥': '子', '卯': '子', '未': '子', '巳': '午', '酉': '午', '丑': '午' };
+        if ([monthZhi, dayZhi, timeZhi].includes(taoHuaMap[yearZhi])) stars.push('桃花');
+
+        // Yi Ma
+        const yiMaMap: Record<string, string> = { '申': '寅', '子': '寅', '辰': '寅', '寅': '申', '午': '申', '戌': '申', '巳': '亥', '酉': '亥', '丑': '亥', '亥': '巳', '卯': '巳', '未': '巳' };
+        if ([monthZhi, dayZhi, timeZhi].includes(yiMaMap[yearZhi])) stars.push('驿马');
+
+        return stars.slice(0, 2).join(' / ') || '吉星高照';
+      };
 
       const getElement = (gan: string, zhi: string) => {
         const elements: Record<string, string> = {
@@ -73,20 +130,24 @@ export default function ChartPage({ profile, onProfileUpdate }: { profile: any, 
         };
         return elements[char] || 'text-on-surface';
       };
+      return {
+        pillars: [
+          { label: '年柱', stem: eightChar.getYearGan(), branch: eightChar.getYearZhi(), stemColor: getColor(eightChar.getYearGan()), branchColor: getColor(eightChar.getYearZhi()), elements: getElement(eightChar.getYearGan(), eightChar.getYearZhi()) },
+          { label: '月柱', stem: eightChar.getMonthGan(), branch: eightChar.getMonthZhi(), stemColor: getColor(eightChar.getMonthGan()), branchColor: getColor(eightChar.getMonthZhi()), elements: getElement(eightChar.getMonthGan(), eightChar.getMonthZhi()) },
+          { label: '日主', stem: eightChar.getDayGan(), branch: eightChar.getDayZhi(), stemColor: getColor(eightChar.getDayGan()), branchColor: getColor(eightChar.getDayZhi()), elements: getElement(eightChar.getDayGan(), eightChar.getDayZhi()), highlight: true },
+          { label: '时柱', stem: eightChar.getTimeGan(), branch: eightChar.getTimeZhi(), stemColor: getColor(eightChar.getTimeGan()), branchColor: getColor(eightChar.getTimeZhi()), elements: getElement(eightChar.getTimeGan(), eightChar.getTimeZhi()) },
+        ],
+        pattern: getPattern(),
+        stars: getStars()
+      };
 
-      return [
-        { label: '年柱', stem: eightChar.getYearGan(), branch: eightChar.getYearZhi(), stemColor: getColor(eightChar.getYearGan()), branchColor: getColor(eightChar.getYearZhi()), elements: getElement(eightChar.getYearGan(), eightChar.getYearZhi()) },
-        { label: '月柱', stem: eightChar.getMonthGan(), branch: eightChar.getMonthZhi(), stemColor: getColor(eightChar.getMonthGan()), branchColor: getColor(eightChar.getMonthZhi()), elements: getElement(eightChar.getMonthGan(), eightChar.getMonthZhi()) },
-        { label: '日主', stem: eightChar.getDayGan(), branch: eightChar.getDayZhi(), stemColor: getColor(eightChar.getDayGan()), branchColor: getColor(eightChar.getDayZhi()), elements: getElement(eightChar.getDayGan(), eightChar.getDayZhi()), highlight: true },
-        { label: '时柱', stem: eightChar.getTimeGan(), branch: eightChar.getTimeZhi(), stemColor: getColor(eightChar.getTimeGan()), branchColor: getColor(eightChar.getTimeZhi()), elements: getElement(eightChar.getTimeGan(), eightChar.getTimeZhi()) },
-      ];
     } catch (e) {
       console.error("Bazi calculation error", e);
       return null;
     }
   }, [profile]);
 
-  const PILLARS_DISPLAY = baziData || [
+  const pillars = baziData?.pillars || [
     { label: '年柱', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置' },
     { label: '月柱', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置' },
     { label: '日主', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置', highlight: true },
@@ -103,77 +164,8 @@ export default function ChartPage({ profile, onProfileUpdate }: { profile: any, 
   return (
     <div className="space-y-10 pb-24">
       <div className="flex justify-between items-end">
-        <h2 className="text-4xl font-headline font-extrabold tracking-tight text-primary">八字命盘</h2>
-        {!isEditing && (
-          <button 
-            onClick={startEditing}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-highest/50 text-primary/60 hover:text-primary transition-colors text-xs font-bold"
-          >
-            <Edit3 size={14} />
-            修改出生信息
-          </button>
-        )}
+        <h2 className="text-4xl font-headline font-black tracking-tight text-primary">八字命盘</h2>
       </div>
-
-      <AnimatePresence>
-        {isEditing && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="bg-surface-container-low p-6 rounded-2xl border border-primary/20 space-y-6"
-          >
-            <div className="flex justify-between items-center">
-              <h4 className="text-sm font-bold text-primary">快速修改生辰</h4>
-              <button onClick={() => setIsEditing(false)} className="text-on-surface-variant/40 hover:text-on-surface-variant">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">性别</label>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => setEditGender('male')}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border transition-all text-sm font-bold",
-                      editGender === 'male' ? "bg-primary/10 border-primary text-primary" : "bg-surface-container-highest border-transparent text-on-surface-variant/40"
-                    )}
-                  >
-                    <Mars size={16} /> 乾造
-                  </button>
-                  <button 
-                    onClick={() => setEditGender('female')}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border transition-all text-sm font-bold",
-                      editGender === 'female' ? "bg-primary/10 border-primary text-primary" : "bg-surface-container-highest border-transparent text-on-surface-variant/40"
-                    )}
-                  >
-                    <Venus size={16} /> 坤造
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">出生日期 (精确到分钟)</label>
-                <input 
-                  type="datetime-local" 
-                  className="w-full bg-surface-container-highest px-4 py-3 rounded-xl focus:outline-none focus:ring-1 ring-primary/30 transition-all text-sm"
-                  value={editBirthDate}
-                  onChange={(e) => setEditBirthDate(e.target.value)}
-                />
-              </div>
-            </div>
-            <button 
-              onClick={handleSave}
-              disabled={isSaving}
-              className="w-full py-4 bg-primary text-background rounded-xl font-black flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-              立即同步命盘
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Four Pillars Card */}
       <motion.section 
@@ -181,17 +173,42 @@ export default function ChartPage({ profile, onProfileUpdate }: { profile: any, 
         animate={{ opacity: 1, scale: 1 }}
         className="relative overflow-hidden rounded-xl bg-surface-container-low p-8 shadow-2xl bento-texture border border-outline-variant/10"
       >
-        {!profile?.birth_date && (
-          <div className="absolute inset-0 z-20 bg-surface-container-low/60 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
-            <div className="space-y-4">
-              <p className="text-on-surface-variant font-bold">请先在“个人中心-设置”中设置出生日期</p>
-              <div className="text-[10px] text-primary/60 uppercase tracking-widest">开启您的数字化命理旅程</div>
+        {(!profile?.birth_date || hideBirth) && (
+          <div className="absolute inset-0 z-20 bg-surface-container-low/80 backdrop-blur-md flex items-center justify-center p-6 text-center">
+            <div className="space-y-6 max-w-xs">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary">
+                <ShieldCheck size={32} />
+              </div>
+              <div className="space-y-2">
+                <p className="text-on-surface font-bold text-lg">{hideBirth ? '隐私保护已开启' : '天机待定'}</p>
+                <p className="text-on-surface-variant text-sm">
+                  {hideBirth ? '为了您的隐私安全，命盘信息已同步隐藏。' : '请先完善您的生辰信息以解锁数字化命盘'}
+                </p>
+              </div>
+              {hideBirth ? (
+                <button 
+                  onClick={onGoToProfile}
+                  className="w-full py-3 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold hover:bg-primary/20 transition-all shadow-lg"
+                >
+                  去隐私管理调整
+                </button>
+              ) : (
+                <button 
+                  onClick={onGoToProfile}
+                  className="w-full py-3 bg-primary text-background rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg"
+                >
+                  前往完善资料
+                </button>
+              )}
             </div>
           </div>
         )}
         <div className="grid grid-cols-4 gap-4 items-end">
-          {PILLARS_DISPLAY.map((p, idx) => (
-            <div key={idx} className="flex flex-col items-center space-y-6 relative">
+          {pillars.map((p, idx) => (
+            <div 
+              key={idx} 
+              className="flex flex-col items-center space-y-6 relative"
+            >
               {p.highlight && (
                 <div className="absolute -inset-x-2 -inset-y-4 bg-primary/5 rounded-xl border border-primary/20 backdrop-blur-sm -z-10"></div>
               )}
@@ -199,8 +216,8 @@ export default function ChartPage({ profile, onProfileUpdate }: { profile: any, 
                 {p.label}
               </span>
               <div className="flex flex-col items-center space-y-2">
-                <div className={`text-5xl font-headline font-bold ${p.stemColor}`}>{p.stem}</div>
-                <div className={`text-3xl font-headline font-medium ${p.branchColor}`}>{p.branch}</div>
+                <div className={`text-5xl font-headline font-bold ${p.stemColor} drop-shadow-sm`}>{p.stem}</div>
+                <div className={`text-3xl font-headline font-medium ${p.branchColor} opacity-80`}>{p.branch}</div>
               </div>
               <span className="text-[10px] text-on-surface-variant/40 font-label">{p.elements}</span>
             </div>
@@ -208,11 +225,11 @@ export default function ChartPage({ profile, onProfileUpdate }: { profile: any, 
         </div>
         <div className="mt-10 pt-8 border-t border-outline-variant/10 flex justify-between items-center">
           <div className="flex gap-4">
-            <div className="px-3 py-1 bg-surface-container-highest rounded text-[10px] font-label text-on-surface-variant">
+            <div className="px-3 py-1 bg-surface-container-highest/30 rounded text-[10px] font-label text-on-surface-variant border border-outline-variant/5">
               {profile?.gender === 'female' ? '坤造 (女)' : '乾造 (男)'}
             </div>
-            <div className="px-3 py-1 bg-surface-container-highest rounded text-[10px] font-label text-on-surface-variant">
-              公历: {profile?.birth_date ? new Date(profile.birth_date).toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-') : '未设置'}
+            <div className="px-3 py-1 bg-surface-container-highest/30 rounded text-[10px] font-label text-on-surface-variant border border-outline-variant/5">
+              公历: {profile?.birth_date ? (hideBirth ? '已隐藏' : new Date(profile.birth_date).toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')) : '未设置'}
             </div>
           </div>
           <motion.div whileHover={{ rotate: 15 }}>
@@ -221,39 +238,13 @@ export default function ChartPage({ profile, onProfileUpdate }: { profile: any, 
         </div>
       </motion.section>
 
-      {/* Detailed Analysis Content (Simplified placeholder logic) */}
-      <motion.section 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-surface-container-low p-8 rounded-xl border border-outline-variant/5 shadow-inner"
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <Sparkles className="text-primary" size={20} />
-          <h3 className="font-headline font-bold text-lg">命盘深度解析</h3>
-        </div>
-        <div className="font-body text-sm text-on-surface-variant leading-relaxed text-justify space-y-4">
-          {!profile?.birth_date ? (
-             <p className="italic opacity-60">请完成出生日期设置以解锁 AI 深度解析内容。</p>
-          ) : (
-            <>
-              <p>
-                此命盘日主为{PILLARS_DISPLAY[2].stem}木，生于{PILLARS_DISPLAY[1].branch}月。根据干支五行分布，您属于“{PILLARS_DISPLAY[2].stem}金命”或对应五行属性。这赋予了你极强的执行力与韧性。
-              </p>
-              <p>
-                目前的五年大运正值关键转型点，虽有挑战，但亦是跨越阶层的绝佳契机。建议在日常生活中根据五行喜忌调整心态与环境。
-              </p>
-            </>
-          )}
-        </div>
-      </motion.section>
-
       {/* Analysis Bento */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: '格局', value: profile?.birth_date ? '正在分析' : '—', color: 'text-on-surface' },
-          { label: '辅星', value: profile?.birth_date ? '正在计算' : '—', color: 'text-on-surface' },
-          { label: '喜用', value: profile?.birth_date ? '水/木' : '—', color: 'text-primary' },
-          { label: '忌讳', value: profile?.birth_date ? '火/土' : '—', color: 'text-error' },
+          { label: '格局', value: (profile?.birth_date && !hideBirth) ? (baziData?.pattern || '计算中') : '—', color: 'text-on-surface' },
+          { label: '辅星', value: (profile?.birth_date && !hideBirth) ? (baziData?.stars || '计算中') : '—', color: 'text-on-surface' },
+          { label: '喜用', value: (profile?.birth_date && !hideBirth) ? '水/木' : '—', color: 'text-primary' },
+          { label: '忌讳', value: (profile?.birth_date && !hideBirth) ? '火/土' : '—', color: 'text-error' },
         ].map((item, idx) => (
           <motion.div 
             key={idx}
@@ -267,6 +258,37 @@ export default function ChartPage({ profile, onProfileUpdate }: { profile: any, 
           </motion.div>
         ))}
       </section>
+
+      {/* Detailed Analysis Content */}
+      <motion.section 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-surface-container-low p-8 rounded-xl border border-outline-variant/5 shadow-inner relative overflow-hidden"
+      >
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/40 via-primary to-primary/40" />
+        <div className="flex items-center gap-3 mb-6">
+          <Sparkles className="text-primary" size={20} />
+          <h3 className="font-headline font-bold text-lg">命盘深度解析</h3>
+        </div>
+        <div className="font-body text-sm text-on-surface-variant leading-relaxed text-justify space-y-6">
+          {(!profile?.birth_date || hideBirth) ? (
+             <p className="italic opacity-60">
+               {hideBirth ? '由于您的隐私保护设置，AI 解析内容已暂时锁定。' : '请完成出生日期设置以解锁 AI 深度解析内容。'}
+             </p>
+          ) : (
+            <>
+              <p>
+                此命盘日主为<span className="text-primary font-bold">{pillars[2].stem}木</span>，生于<span className="text-primary font-bold">{pillars[1].branch}月</span>。根据干支五行分布，您属于“<span className="text-on-surface font-black px-2 py-0.5 bg-primary/10 rounded">{baziData?.pattern || '---'}</span>”。这赋予了你极强的执行力与独特的个人魅力。
+              </p>
+              <p className="p-4 bg-surface-container-highest/30 rounded-lg border-l-4 border-primary italic">
+                “目前正值关键转型点，虽有挑战，但亦是跨越阶层的绝佳契机。建议在日常生活中多亲近具有<span className="text-primary">水、木</span>气息的环境，有助于提升个人磁场。”
+              </p>
+            </>
+          )}
+        </div>
+      </motion.section>
+
+
 
       {/* Annual Fortune Overview */}
       <section className="space-y-6">

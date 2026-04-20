@@ -2,14 +2,56 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, ArrowRight, MessageCircle, Apple, Circle } from 'lucide-react';
 import { cn } from '../lib/utils';
+import LegalOverlay from '../components/LegalOverlay';
 
 export default function LoginPage({ onLogin }: { onLogin: () => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isAgreed, setIsAgreed] = useState(false);
   const [errorVisible, setErrorVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showLegal, setShowLegal] = useState(false);
+  const [legalType, setLegalType] = useState<'agreement' | 'privacy'>('agreement');
+
+  const AGREEMENT_TEXT = `知命用户服务协议
+
+欢迎您使用知命。本协议是您与知命平台之间就服务使用所订立的契约。
+
+1. 服务内容
+知命利用人工智能技术为您提供命理分析、起卦参考等服务。相关结果仅供娱乐与学术参考，不作为决策依据。
+
+2. 用户规范
+您承诺遵守法律法规，不利用本平台传播违规信息。
+
+3. 账号安全
+您负责保护您的账号密码安全，因泄露造成的损失由您自行承担。
+
+4. 知识产权
+本平台所有内容、算法、设计之版权均归知命所有。
+
+5. 免责声明
+命理测算具有不确定性，本平台不对测算结果的绝对准确性做担保，亦不承担任何法律责任。`;
+
+  const PRIVACY_TEXT = `知命隐私政策
+
+知命非常重视您的隐私保护。
+
+1. 信息采集
+我们会采集您的出生日期、性别用于排盘计算。我们会加密存储您的手机号用于登录校验。
+
+2. 信息使用
+采集的信息仅用于为您生成命理报告，未经许可不会提供给第三方。
+
+3. 信息安全
+我们采用工业级加密技术保障您的数据安全。
+
+4. 权限说明
+本应用可能需要获取您的通知权限用于提醒每日运势更新。
+
+5. 您的权利
+您可以随时在“设置”中注销账号并要求删除所有个人数据。`;
 
   const handleAction = async () => {
     if (!isAgreed) {
@@ -19,6 +61,21 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
     }
     if (!phoneNumber || !password) {
       setErrorMessage('请输入手机号和密码');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    // Phone validation
+    const phoneRegex = /^1[3-9]\d{9}$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      setErrorMessage('请输入正确的11位手机号');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    // Password confirmation
+    if (mode === 'register' && password !== confirmPassword) {
+      setErrorMessage('两次输入的密码不一致');
       setTimeout(() => setErrorMessage(''), 3000);
       return;
     }
@@ -39,7 +96,8 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
       
       if (data.access_token) {
         localStorage.setItem('token', data.access_token);
-        onLogin();
+        // Using window.location.href instead of reload(true) for more consistent cross-browser "jump"
+        window.location.href = '/'; 
       }
     } catch (error: any) {
       console.error('Login error:', error);
@@ -70,17 +128,20 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
         <div className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-headline font-bold uppercase tracking-widest text-primary/60 ml-4">手机号 / 账号</label>
+              <label className="text-[10px] font-headline font-bold uppercase tracking-widest text-primary/60 ml-4">手机号</label>
               <input 
-                type="text" 
+                type="tel" 
+                maxLength={11}
                 value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="请输入手机号"
+                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                placeholder="请输入11位手机号"
                 className="w-full h-15 bg-surface-container-low border border-outline-variant/10 rounded-[2rem] px-8 font-headline text-lg focus:outline-none focus:border-primary/40 transition-colors"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-headline font-bold uppercase tracking-widest text-primary/60 ml-4">密码</label>
+              <label className="text-[10px] font-headline font-bold uppercase tracking-widest text-primary/60 ml-4">
+                {mode === 'login' ? '密码' : '设置密码'}
+              </label>
               <input 
                 type="password" 
                 value={password}
@@ -89,6 +150,22 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
                 className="w-full h-15 bg-surface-container-low border border-outline-variant/10 rounded-[2rem] px-8 font-headline text-lg focus:outline-none focus:border-primary/40 transition-colors"
               />
             </div>
+            {mode === 'register' && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="space-y-1"
+              >
+                <label className="text-[10px] font-headline font-bold uppercase tracking-widest text-primary/60 ml-4">确认密码</label>
+                <input 
+                  type="password" 
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="请再次输入密码"
+                  className="w-full h-15 bg-surface-container-low border border-outline-variant/10 rounded-[2rem] px-8 font-headline text-lg focus:outline-none focus:border-primary/40 transition-colors"
+                />
+              </motion.div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 px-4">
@@ -106,9 +183,19 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
               errorVisible && !isAgreed ? "text-red-400 font-bold" : ""
             )}>
               已阅读并同意知命的
-              <span className="text-primary mx-0.5">用户协议</span>
+              <span 
+                onClick={() => { setLegalType('agreement'); setShowLegal(true); }}
+                className="text-primary mx-0.5 cursor-pointer hover:underline underline-offset-4"
+              >
+                用户协议
+              </span>
               与
-              <span className="text-primary mx-0.5">隐私条款</span>
+              <span 
+                onClick={() => { setLegalType('privacy'); setShowLegal(true); }}
+                className="text-primary mx-0.5 cursor-pointer hover:underline underline-offset-4"
+              >
+                隐私条款
+              </span>
             </p>
           </div>
 
@@ -174,6 +261,16 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
       <footer className="absolute bottom-12 text-center w-full px-8 pointer-events-none">
         <p className="text-[10px] text-on-surface-variant/30 uppercase tracking-[0.5em]">顺应天命 · 笃行致远</p>
       </footer>
+
+      <AnimatePresence>
+        {showLegal && (
+          <LegalOverlay 
+            title={legalType === 'agreement' ? '用户服务协议' : '隐私政策条款'}
+            content={legalType === 'agreement' ? AGREEMENT_TEXT : PRIVACY_TEXT}
+            onClose={() => setShowLegal(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

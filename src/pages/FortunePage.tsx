@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Sparkles, Briefcase, Wallet, Heart, BrainCircuit, X, MessageCircle, Send, Loader2 } from 'lucide-react';
+import { Sparkles, Briefcase, Wallet, Heart, BrainCircuit, X, MessageCircle, Send, Loader2, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FortuneScore } from '../types';
 import { askFortuneAI } from '../services/aiService';
 import { cn } from '../lib/utils';
+import { toPng } from 'html-to-image';
+import { Solar } from 'lunar-javascript';
+import ZenLoader from '../components/ZenLoader';
 
 const SCORES: FortuneScore[] = [
   { label: '今日总运', icon: 'Sparkles', score: 4, analysis: '今日受到紫微星感应，整体气场呈现平稳上升态势。天干地支相合，是执行长远计划的好时机。建议保持谦逊，多听取周围人的建议，会有意外之喜。' },
@@ -22,6 +25,24 @@ export default function FortunePage() {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<{role: 'user' | 'ai', content: string}[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [showShareCard, setShowShareCard] = useState(false);
+  const posterRef = React.useRef<HTMLDivElement>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  // Dynamic Lunar Date
+  const now = new Date();
+  const solar = Solar.fromDate(now);
+  const lunar = solar.getLunar();
+  const lunarDateStr = `农历 ${lunar.getYearInGanZhi()}年 ${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
+  const lunarDayOnly = `${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
+  const lunarYearOnly = `农历 ${lunar.getYearInGanZhi()}年`;
 
   const handleSendChat = async () => {
     if (!chatInput.trim() || isAiLoading) return;
@@ -41,16 +62,46 @@ export default function FortunePage() {
     }
   };
 
+  const handleDownloadPoster = async () => {
+    if (!posterRef.current) return;
+    try {
+      const dataUrl = await toPng(posterRef.current, {
+        cacheBust: true,
+        backgroundColor: '#120b1e', // Match the app background
+      });
+      const link = document.createElement('a');
+      link.download = `知命运势-${lunar.getYearInGanZhi()}-${lunar.getMonthInChinese()}${lunar.getDayInChinese()}.png`;
+      link.href = dataUrl;
+      link.click();
+      setShowShareCard(false);
+      setToast('海报已保存至相册，快去分享吧！');
+    } catch (err) {
+      console.error('海报生成失败', err);
+      alert('海报生成失败，请尝试手动截图。');
+    }
+  };
+
   return (
     <div className="space-y-10 pb-10">
       {/* Title */}
       <motion.section 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col gap-1"
+        className="flex justify-between items-end"
       >
-        <h2 className="text-4xl font-extrabold tracking-tight font-headline text-primary">今日运势</h2>
-        <p className="text-on-surface-variant font-label tracking-widest uppercase text-xs">农历 丁未年 三月初七</p>
+        <div className="flex flex-col gap-1">
+          <h2 className="text-4xl font-extrabold tracking-tight font-headline text-primary">今日运势</h2>
+          <p className="text-on-surface-variant font-label tracking-widest uppercase text-xs">{lunarDateStr}</p>
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowShareCard(true)}
+          className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all flex items-center gap-2 text-xs font-bold"
+        >
+          <Sparkles size={16} />
+          生成海报
+        </motion.button>
       </motion.section>
 
       {/* Yi/Ji Banner */}
@@ -213,9 +264,8 @@ export default function FortunePage() {
                 </motion.div>
               ))}
               {isAiLoading && (
-                <div className="flex items-center gap-2 text-primary/60 text-xs animate-pulse">
-                  <Loader2 size={12} className="animate-spin" />
-                  正在解析星象能量...
+                <div className="py-8">
+                  <ZenLoader message="AI 正在解析星象能量..." />
                 </div>
               )}
             </div>
@@ -239,6 +289,119 @@ export default function FortunePage() {
                 </button>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Share Card Modal */}
+      <AnimatePresence>
+        {showShareCard && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-12 overflow-y-auto">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowShareCard(false)}
+              className="fixed inset-0 bg-black/90 backdrop-blur-md"
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 30 }}
+              className="relative w-full max-w-sm bg-surface-container rounded-[2.5rem] overflow-hidden shadow-2xl border border-primary/20 flex flex-col"
+            >
+              {/* Poster Content Area */}
+              <div ref={posterRef} className="p-8 space-y-8 bento-texture bg-gradient-to-b from-primary/10 to-transparent bg-[#120b1e]">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <h4 className="text-3xl font-headline font-black text-primary tracking-tighter">知命</h4>
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-primary/40">Destiny Insight</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-headline font-bold text-on-surface">{lunarDayOnly}</p>
+                    <p className="text-[10px] text-on-surface-variant/60">{lunarYearOnly}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center text-background shadow-lg shadow-primary/20">
+                      <Sparkles size={24} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-primary/60 font-bold uppercase tracking-widest">今日总运</p>
+                      <div className="flex gap-1 mt-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Sparkles key={i} size={14} className={i < 4 ? "text-primary fill-primary" : "text-primary/20"} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-6 bg-surface-container-highest/40 rounded-3xl border border-primary/10 backdrop-blur-sm">
+                    <p className="text-sm text-on-surface leading-relaxed text-justify italic">
+                      “今日天干丁火与命盘食神相合，虽有忙碌之象，但在事业规划上容易获得贵人点拨。情绪平稳是今日致胜的关键。”
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-green-400/5 p-4 rounded-2xl border border-green-400/10">
+                    <p className="text-[10px] text-green-400/60 font-bold mb-1">宜</p>
+                    <p className="text-sm font-bold text-on-surface">签约 · 出行</p>
+                  </div>
+                  <div className="bg-red-400/5 p-4 rounded-2xl border border-red-400/10">
+                    <p className="text-[10px] text-red-400/60 font-bold mb-1">忌</p>
+                    <p className="text-sm font-bold text-on-surface">动土 · 嫁娶</p>
+                  </div>
+                </div>
+
+                <div className="pt-8 border-t border-outline-variant/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-center">
+                       <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Lucky" alt="qr" className="w-5 h-5 opacity-40" />
+                    </div>
+                    <p className="text-[8px] text-on-surface-variant/40 leading-tight">
+                      长按保存海报<br />
+                      扫码开启您的命盘
+                    </p>
+                  </div>
+                  <Sparkles size={24} className="text-primary/10" />
+                </div>
+              </div>
+
+              {/* Action Bar */}
+              <div className="p-4 bg-surface-container-highest border-t border-outline-variant/10 flex gap-4">
+                <button 
+                  onClick={() => setShowShareCard(false)}
+                  className="flex-1 py-4 text-sm font-bold text-on-surface-variant/60 hover:text-on-surface transition-colors"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleDownloadPoster}
+                  className="flex-[2] py-4 bg-primary text-background rounded-2xl font-bold text-sm shadow-xl shadow-primary/10"
+                >
+                  保存海报
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Global Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-on-surface text-surface rounded-full shadow-2xl font-bold text-sm flex items-center gap-2"
+          >
+            <Sparkles size={16} className="text-primary" />
+            {toast}
           </motion.div>
         )}
       </AnimatePresence>

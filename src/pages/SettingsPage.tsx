@@ -3,140 +3,14 @@ import { User, ShieldCheck, Bell, Eye, Info, ChevronRight, ArrowLeft, LogOut, Sp
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { fetchWithAuth } from '../services/api';
+import { useUser } from '../contexts/UserContext';
 
-import { Calendar, Clock, Venus, Mars } from 'lucide-react';
-
-export default function SettingsPage({ onBack, onLogout, onProfileUpdate }: { onBack: () => void, onLogout: () => void, onProfileUpdate: () => void }) {
-  const [subPage, setSubPage] = useState<'main' | 'profile' | 'security' | 'about'>('main');
+export default function SettingsPage({ onBack, onLogout }: { onBack: () => void, onLogout: () => void }) {
+  const [subPage, setSubPage] = useState<'main' | 'security' | 'about'>('main');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  
-  // Profile state
-  const [nickname, setNickname] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [gender, setGender] = useState<'male' | 'female'>('male');
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (subPage === 'profile') {
-      fetchWithAuth('/api/user/profile').then(data => {
-        setNickname(data.nickname || '');
-        setGender(data.gender || 'male');
-        if (data.birth_date) {
-          const date = new Date(data.birth_date);
-          const formatted = date.toISOString().slice(0, 16);
-          setBirthDate(formatted);
-        }
-      }).catch(console.error);
-    }
-  }, [subPage]);
-
-  const handleSaveProfile = async () => {
-    setIsSaving(true);
-    try {
-      await fetchWithAuth('/api/user/profile', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          nickname, 
-          birth_date: birthDate ? new Date(birthDate).toISOString() : null,
-          gender
-        })
-      });
-      onProfileUpdate(); // Refresh global profile state
-      alert('资料已同步至星象中。');
-    } catch (error) {
-      console.error(error);
-      alert('同步失败，请检查网络。');
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const renderSubPage = () => {
     switch (subPage) {
-      case 'profile':
-        return (
-          <div className="space-y-8">
-            <div className="flex justify-between items-center">
-              <button onClick={() => setSubPage('main')} className="flex items-center gap-2 text-primary/60 hover:text-primary transition-colors">
-                <ArrowLeft size={18} />
-                <span className="font-headline font-bold text-xs">返回</span>
-              </button>
-              <button 
-                onClick={handleSaveProfile}
-                disabled={isSaving}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-background rounded-full font-bold text-xs hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                保存更改
-              </button>
-            </div>
-            <h2 className="text-2xl font-bold text-primary font-headline">个人资料</h2>
-            <div className="space-y-6">
-              <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
-                <p className="text-on-surface-variant text-sm mb-6">完善您的生辰八字信息以获得更精准的测算结果。</p>
-                <div className="space-y-6">
-                  {/* Nickname */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase tracking-widest text-primary/60 ml-2 font-bold font-headline">昵称</label>
-                    <input 
-                      type="text" 
-                      className="w-full bg-surface-container-highest px-4 py-3 rounded-xl focus:outline-none focus:ring-1 ring-primary/30 transition-all text-sm" 
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      placeholder="设置您的昵称"
-                    />
-                  </div>
-
-                  {/* Gender Selector */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase tracking-widest text-primary/60 ml-2 font-bold font-headline">性别 (乾坤)</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button 
-                        onClick={() => setGender('male')}
-                        className={cn(
-                          "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all",
-                          gender === 'male' ? "bg-primary/10 border-primary text-primary" : "bg-surface-container-highest border-transparent text-on-surface-variant/40"
-                        )}
-                      >
-                        <Mars size={16} />
-                        <span className="text-xs font-bold">乾造 (男)</span>
-                      </button>
-                      <button 
-                        onClick={() => setGender('female')}
-                        className={cn(
-                          "flex items-center justify-center gap-2 p-3 rounded-xl border transition-all",
-                          gender === 'female' ? "bg-primary/10 border-primary text-primary" : "bg-surface-container-highest border-transparent text-on-surface-variant/40"
-                        )}
-                      >
-                        <Venus size={16} />
-                        <span className="text-xs font-bold">坤造 (女)</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Date Picker (Optimized UI) */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase tracking-widest text-primary/60 ml-2 font-bold font-headline">出生日期 (精确到分钟)</label>
-                    <div className="relative group">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary/40 group-focus-within:text-primary transition-colors pointer-events-none">
-                        <Calendar size={18} />
-                      </div>
-                      <input 
-                        type="datetime-local" 
-                        className="w-full bg-surface-container-highest pl-12 pr-4 py-3 rounded-xl focus:outline-none focus:ring-1 ring-primary/30 transition-all text-sm appearance-none cursor-pointer" 
-                        value={birthDate}
-                        onChange={(e) => setBirthDate(e.target.value)}
-                      />
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-primary/20 pointer-events-none">
-                        <Clock size={16} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
       case 'security':
         return (
           <div className="space-y-8">
@@ -147,12 +21,12 @@ export default function SettingsPage({ onBack, onLogout, onProfileUpdate }: { on
             <h2 className="text-2xl font-bold text-primary font-headline">账号安全</h2>
             <div className="space-y-6">
               <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
-                <div className="flex justify-between items-center py-2">
+                <div className="flex justify-between items-center py-2 cursor-pointer hover:text-primary transition-colors">
                   <span className="text-on-surface/80">修改密码</span>
                   <ChevronRight size={16} />
                 </div>
                 <div className="h-[1px] bg-outline-variant/10 my-4"></div>
-                <div className="flex justify-between items-center py-2">
+                <div className="flex justify-between items-center py-2 cursor-pointer hover:text-error transition-colors">
                   <span className="text-on-surface/80">注销账号</span>
                   <span className="text-error text-xs">危险操作</span>
                 </div>
@@ -194,18 +68,6 @@ export default function SettingsPage({ onBack, onLogout, onProfileUpdate }: { on
             <section className="space-y-6">
               <div className="bg-surface-container-low p-2 rounded-[2rem]">
                 <div className="space-y-1">
-                  <button 
-                    onClick={() => setSubPage('profile')}
-                    className="w-full flex items-center justify-between p-5 glass-card rounded-full hover:bg-surface-container-highest transition-all group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary-container/10 text-primary">
-                        <User size={20} />
-                      </div>
-                      <span className="text-lg font-medium tracking-wide">个人资料</span>
-                    </div>
-                    <ChevronRight size={20} className="text-on-surface-variant/40 group-hover:text-primary transition-colors" />
-                  </button>
                   <button 
                     onClick={() => setSubPage('security')}
                     className="w-full flex items-center justify-between p-5 glass-card rounded-full hover:bg-surface-container-highest transition-all group"
@@ -304,10 +166,10 @@ export default function SettingsPage({ onBack, onLogout, onProfileUpdate }: { on
           </button>
         )}
         <h1 className="text-primary text-5xl font-extrabold tracking-tight mb-2 font-headline">
-          {subPage === 'main' ? '设置' : subPage === 'profile' ? '个人' : '安全'}
+          {subPage === 'main' ? '设置' : subPage === 'security' ? '安全' : '关于'}
         </h1>
         <p className="text-on-surface-variant/60 font-label text-xs uppercase tracking-widest">
-          {subPage === 'main' ? '系统配置与星象校准' : '您的数字化命理身份'}
+          {subPage === 'main' ? '系统配置与星象校准' : '保障您的数字命理安全'}
         </p>
       </header>
 
