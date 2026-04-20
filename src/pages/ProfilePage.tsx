@@ -120,12 +120,6 @@ export default function ProfilePage({ profile, onProfileUpdate, onSettingsClick 
                     </div>
                   </div>
                 </div>
-                <button 
-                  onClick={onSettingsClick}
-                  className="p-3 bg-surface-container-highest/50 rounded-2xl text-on-surface-variant hover:text-primary transition-all border border-outline-variant/10 shadow-sm"
-                >
-                  <Settings size={20} />
-                </button>
               </div>
 
               {/* Inline Editing Form */}
