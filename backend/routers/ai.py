@@ -91,7 +91,10 @@ async def call_ai_stream(prompt: str, system_instruction: str = "") -> AsyncGene
                     yield content
             return # 成功后退出
         except Exception as e:
-            print(f"OpenAI Stream Failed: {e}")
+            error_msg = f"OpenAI 接口调用失败: {str(e)}"
+            print(error_msg)
+            yield error_msg
+            return
     
     # 尝试使用 Gemini
     if gemini_client:
@@ -107,7 +110,10 @@ async def call_ai_stream(prompt: str, system_instruction: str = "") -> AsyncGene
                     yield chunk.text
             return
         except Exception as e:
-            print(f"Gemini Stream Failed: {e}")
+            error_msg = f"Gemini 接口调用失败: {str(e)}"
+            print(error_msg)
+            yield error_msg
+            return
             
     # 模拟模式：当 API 调用失败时
     if "今日灵启" in system_instruction or "灵启" in prompt:
