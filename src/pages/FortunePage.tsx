@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import { toPng } from 'html-to-image';
 import { Solar } from 'lunar-javascript';
 import ZenLoader from '../components/ZenLoader';
+import MarkdownContent from '../components/MarkdownContent';
 
 const SCORES: FortuneScore[] = [
   { label: '今日总运', icon: 'Sparkles', score: 4, analysis: '今日受到紫微星感应，整体气场呈现平稳上升态势。天干地支相合，是执行长远计划的好时机。建议保持谦逊，多听取周围人的建议，会有意外之喜。' },
@@ -21,7 +22,6 @@ const ICON_MAP: Record<string, any> = {
 
 export default function FortunePage() {
   const [selectedFortune, setSelectedFortune] = useState<typeof SCORES[0] | null>(null);
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<{role: 'user' | 'ai', content: string}[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -44,6 +44,14 @@ export default function FortunePage() {
   const lunarDayOnly = `${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
   const lunarYearOnly = `农历 ${lunar.getYearInGanZhi()}年`;
 
+  const chatScrollRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, isAiLoading]);
+
   const handleSendChat = async () => {
     if (!chatInput.trim() || isAiLoading) return;
     
@@ -54,8 +62,13 @@ export default function FortunePage() {
 
     try {
       const response = await askFortuneAI(userMsg);
-      setChatMessages(prev => [...prev, { role: 'ai', content: response.content }]);
+      if (response && response.content) {
+        setChatMessages(prev => [...prev, { role: 'ai', content: response.content }]);
+      } else {
+        throw new Error('Empty response');
+      }
     } catch (error) {
+      console.error('Chat error:', error);
       setChatMessages(prev => [...prev, { role: 'ai', content: '（系统波动）星象暂时模糊，请稍后再试。' }]);
     } finally {
       setIsAiLoading(false);
@@ -197,101 +210,87 @@ export default function FortunePage() {
         </div>
       </section>
 
-      {/* CTA Button */}
-      <section className="pt-4">
-        <motion.button 
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => setIsChatOpen(true)}
-          className="w-full py-5 px-8 rounded-xl bg-gradient-to-br from-primary to-primary-container text-background font-headline font-extrabold text-lg flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(242,195,107,0.2)]"
-        >
-          向命盘 AI 追问今日运势
-          <motion.span animate={{ x: [0, 5, 0] }} transition={{ repeat: Infinity, duration: 1.5 }}>
-            <Sparkles size={20} />
-          </motion.span>
-        </motion.button>
-      </section>
+      {/* Chat Section - Only show if there are messages */}
+      {chatMessages.length > 0 && (
+        <section className="space-y-6 pt-4 border-t border-outline-variant/10">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              <MessageCircle size={20} />
+            </div>
+            <h3 className="font-headline font-bold text-primary">命盘 AI 对话</h3>
+          </div>
 
-      {/* Chat Overlay */}
-      <AnimatePresence>
-        {isChatOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex flex-col"
-          >
-            <div className="p-4 border-b border-outline-variant/10 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                  <MessageCircle size={20} />
-                </div>
-                <span className="font-headline font-bold">命盘 AI 对话</span>
-              </div>
-              <button 
-                onClick={() => setIsChatOpen(false)}
-                className="p-2 text-on-surface-variant hover:text-on-surface transition-colors"
+          <div className="space-y-4 pb-32">
+            {chatMessages.map((msg, i) => (
+              <motion.div 
+                key={i}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  "flex flex-col gap-1 max-w-[90%]",
+                  msg.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
+                )}
               >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {chatMessages.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-on-surface-variant/40 space-y-4">
-                  <Sparkles size={48} className="opacity-20 animate-pulse" />
-                  <p className="text-sm font-headline">您可以咨询关于今日运势的任何深度细节</p>
-                </div>
-              )}
-              {chatMessages.map((msg, i) => (
-                <motion.div 
-                  key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={cn(
-                    "flex flex-col gap-1 max-w-[85%]",
-                    msg.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
+                <div className={cn(
+                  "p-4 rounded-2xl text-sm leading-relaxed shadow-sm",
+                  msg.role === 'user' 
+                    ? "bg-primary text-background font-bold rounded-tr-none whitespace-pre-wrap" 
+                    : "bg-surface-container-low text-on-surface rounded-tl-none border border-outline-variant/10"
+                )}>
+                  {msg.role === 'user' ? (
+                    msg.content
+                  ) : (
+                    <MarkdownContent content={msg.content} />
                   )}
-                >
-                  <div className={cn(
-                    "p-4 rounded-2xl text-sm leading-relaxed",
-                    msg.role === 'user' 
-                      ? "bg-primary text-background font-bold rounded-tr-none" 
-                      : "bg-surface-container-highest text-on-surface rounded-tl-none border border-outline-variant/10"
-                  )}>
-                    {msg.content}
-                  </div>
-                </motion.div>
-              ))}
-              {isAiLoading && (
-                <div className="py-8">
-                  <ZenLoader message="AI 正在解析星象能量..." />
                 </div>
-              )}
-            </div>
-
-            <div className="p-4 border-t border-outline-variant/10 bg-surface-container-low/50">
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                  placeholder="请输入您的追问..."
-                  className="flex-1 bg-background border border-outline-variant/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary transition-colors"
-                />
-                <button 
-                  onClick={handleSendChat}
-                  disabled={isAiLoading || !chatInput.trim()}
-                  className="p-3 bg-primary text-background rounded-xl disabled:opacity-50 transition-all hover:scale-105 active:scale-95"
-                >
-                  <Send size={20} />
-                </button>
+              </motion.div>
+            ))}
+            {isAiLoading && (
+              <div className="py-4">
+                <ZenLoader message="AI 正在解析星象能量..." />
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            )}
+            <div ref={chatScrollRef} />
+          </div>
+        </section>
+      )}
+
+      {/* Padding for bottom bar if no chat */}
+      <div className="h-32" />
+
+      {/* Fixed Input at bottom */}
+      <div className="fixed bottom-24 left-0 w-full px-4 z-40">
+        <div className="max-w-screen-md mx-auto relative group">
+          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+            <MessageCircle size={18} className="text-primary/60" />
+          </div>
+          <input 
+            className="w-full bg-surface-container-highest/90 backdrop-blur-md border border-outline-variant/20 rounded-2xl py-5 pl-14 pr-16 text-on-surface placeholder-on-surface-variant/40 focus:ring-1 focus:ring-primary shadow-2xl outline-none" 
+            placeholder="咨询今日运势细节..." 
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSendChat();
+              }
+            }}
+          />
+          <button 
+            type="button"
+            onClick={handleSendChat}
+            disabled={isAiLoading || !chatInput.trim()}
+            className="absolute right-3 top-2 bottom-2 px-4 bg-gradient-to-br from-primary to-primary-container text-background rounded-xl flex items-center justify-center hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+          >
+            {isAiLoading ? (
+              <div className="w-5 h-5 border-2 border-background border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Send size={18} fill="currentColor" />
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* Share Card Modal */}
       <AnimatePresence>

@@ -40,7 +40,9 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
         0
       );
       const lunar = solar.getLunar();
+      if (!lunar) return { error: true };
       const eightChar = lunar.getEightChar();
+      if (!eightChar) return { error: true };
 
       // Calculation for Pattern (格局)
       const getPattern = () => {
@@ -143,9 +145,11 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
 
     } catch (e) {
       console.error("Bazi calculation error", e);
-      return null;
+      return { error: true };
     }
   }, [profile]);
+
+  const baziError = baziData && 'error' in baziData;
 
   const pillars = baziData?.pillars || [
     { label: '年柱', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置' },
@@ -241,10 +245,10 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
       {/* Analysis Bento */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: '格局', value: (profile?.birth_date && !hideBirth) ? (baziData?.pattern || '计算中') : '—', color: 'text-on-surface' },
-          { label: '辅星', value: (profile?.birth_date && !hideBirth) ? (baziData?.stars || '计算中') : '—', color: 'text-on-surface' },
-          { label: '喜用', value: (profile?.birth_date && !hideBirth) ? '水/木' : '—', color: 'text-primary' },
-          { label: '忌讳', value: (profile?.birth_date && !hideBirth) ? '火/土' : '—', color: 'text-error' },
+          { label: '格局', value: (profile?.birth_date && !hideBirth) ? (baziError ? '解析失败' : (baziData?.pattern || '计算中')) : '—', color: 'text-on-surface' },
+          { label: '辅星', value: (profile?.birth_date && !hideBirth) ? (baziError ? '解析失败' : (baziData?.stars || '计算中')) : '—', color: 'text-on-surface' },
+          { label: '喜用', value: (profile?.birth_date && !hideBirth) ? (baziError ? '—' : '水/木') : '—', color: 'text-primary' },
+          { label: '忌讳', value: (profile?.birth_date && !hideBirth) ? (baziError ? '—' : '火/土') : '—', color: 'text-error' },
         ].map((item, idx) => (
           <motion.div 
             key={idx}

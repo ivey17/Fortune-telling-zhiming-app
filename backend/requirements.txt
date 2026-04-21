@@ -4,6 +4,7 @@ supabase
 pydantic
 pydantic-settings
 google-genai
+openai
 python-dotenv
 pyjwt
 passlib[bcrypt]
