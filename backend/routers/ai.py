@@ -42,6 +42,7 @@ class AIQuery(BaseModel):
     query: str
     context: Any = None
     title: Optional[str] = None
+    save_history: bool = True
 
 class SaveDivinationRequest(BaseModel):
     lines: list[int]
@@ -162,8 +163,8 @@ async def ask_fortune(req: AIQuery, user=Depends(get_current_user)):
             full_answer += chunk
             yield chunk
             
-        # 只有在用户已登录时才保存历史记录
-        if user:
+        # 只有在用户已登录且需要保存时才记录历史
+        if user and req.save_history:
             history_data = {
                 "user_id": user.id,
                 "title": req.title or req.query[:20],

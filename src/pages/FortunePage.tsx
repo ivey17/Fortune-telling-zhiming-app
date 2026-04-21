@@ -107,7 +107,7 @@ export default function FortunePage() {
         3. 重点描述今日的心境建议或行动契机，不要有说教感。`;
 
         setSpiritDiary("");
-        const stream = askAIStream('/api/ai/fortune', { query: prompt, context: null, title: "今日灵启" });
+        const stream = askAIStream('/api/ai/fortune', { query: prompt, context: null, title: "今日灵启", save_history: false });
         let fullContent = "";
         let firstChunk = true;
         

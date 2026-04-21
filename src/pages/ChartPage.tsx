@@ -56,7 +56,7 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
         3. 重点点出性格底色与发展建议，不要有大师语气的废话。`;
         
         setDeepAnalysis("");
-        const stream = askAIStream('/api/ai/fortune', { query: prompt, context: null, title: "命盘简评" });
+        const stream = askAIStream('/api/ai/fortune', { query: prompt, context: null, title: "命盘简评", save_history: false });
         let fullContent = "";
         let firstChunk = true;
         
