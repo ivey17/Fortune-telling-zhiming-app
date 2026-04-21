@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+supabase
+pydantic
+pydantic-settings
+google-genai
+openai
+python-dotenv
+pyjwt
+bcrypt>=4.0.0
