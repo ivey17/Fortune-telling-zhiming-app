@@ -5,7 +5,7 @@ import { cn } from '../lib/utils';
 import { useUser } from '../contexts/UserContext';
 import { analyzeBazi } from '../lib/bazi';
 import { cacheService } from '../services/cacheService';
-import { askFortuneAI } from '../services/aiService';
+import { askAIStream } from '../services/aiService';
 import MarkdownContent from '../components/MarkdownContent';
 import ZenLoader from '../components/ZenLoader';
 
@@ -40,7 +40,7 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
     const cacheKey = `bazi_v2_analysis_${profile.id}`;
     const cached = cacheService.get<string>(cacheKey);
 
-    if (cached) {
+    if (cached && !cached.includes("天机混沌")) {
       setDeepAnalysis(cached);
     } else {
       fetchDeepAnalysis();
@@ -55,10 +55,22 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
         2. 字数在100字左右，用语通俗、精准、沉稳。
         3. 重点点出性格底色与发展建议，不要有大师语气的废话。`;
         
-        const res = await askFortuneAI(prompt, null, "命盘简评");
-        if (res.content) {
-          setDeepAnalysis(res.content);
-          cacheService.set(cacheKey, res.content, 60 * 60 * 24 * 7);
+        setDeepAnalysis("");
+        const stream = askAIStream('/api/ai/fortune', { query: prompt, context: null, title: "命盘简评" });
+        let fullContent = "";
+        let firstChunk = true;
+        
+        for await (const chunk of stream) {
+          fullContent += chunk;
+          setDeepAnalysis(fullContent);
+          if (firstChunk) {
+            setIsAnalyzing(false);
+            firstChunk = false;
+          }
+        }
+        
+        if (fullContent && !fullContent.includes("天机混沌")) {
+          cacheService.set(cacheKey, fullContent, 60 * 60 * 24 * 7);
           refreshHistory();
         }
       } catch (e) {

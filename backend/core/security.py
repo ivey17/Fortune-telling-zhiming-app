@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, Header
 from pydantic import BaseModel
 from passlib.context import CryptContext
 from core.config import settings
+from typing import Optional
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -24,9 +25,9 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
-def get_current_user(authorization: str = Header(None)) -> CurrentUser:
+def get_current_user(authorization: str = Header(None)) -> Optional[CurrentUser]:
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid token")
+        return None
     token = authorization.split(" ")[1]
     
     try:
@@ -34,9 +35,7 @@ def get_current_user(authorization: str = Header(None)) -> CurrentUser:
         user_id: str = payload.get("sub")
         phone: str = payload.get("phone")
         if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
+            return None
         return CurrentUser(id=user_id, phone=phone)
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None

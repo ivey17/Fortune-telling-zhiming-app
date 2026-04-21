@@ -14,17 +14,13 @@ export interface ChatResponse {
  * Sends a query to the AI regarding Today's Fortune.
  */
 export async function askFortuneAI(query: string, context?: any, title?: string): Promise<ChatResponse> {
-  console.log('Calling Fortune AI API with query:', query);
-  
   try {
-    const response = await fetchWithAuth('/api/ai/fortune', {
-      method: 'POST',
-      body: JSON.stringify({ query, context, title }),
-    });
-    return {
-      content: response.content,
-      tokensUsed: response.tokensUsed || 0
-    };
+    let fullContent = '';
+    const stream = askAIStream('/api/ai/fortune', { query, context, title });
+    for await (const chunk of stream) {
+      fullContent += chunk;
+    }
+    return { content: fullContent };
   } catch (error) {
     console.error("AI Service Error:", error);
     return {
@@ -38,17 +34,13 @@ export async function askFortuneAI(query: string, context?: any, title?: string)
  * Sends a query to the AI regarding Divination/I-Ching results.
  */
 export async function askDivinationAI(query: string, hexagramData?: any, title?: string): Promise<ChatResponse> {
-  console.log('Calling Divination AI API with query:', query);
-  
   try {
-    const response = await fetchWithAuth('/api/ai/divination', {
-      method: 'POST',
-      body: JSON.stringify({ query, context: hexagramData, title }),
-    });
-    return {
-      content: response.content,
-      tokensUsed: response.tokensUsed || 0
-    };
+    let fullContent = '';
+    const stream = askAIStream('/api/ai/divination', { query, context: hexagramData, title });
+    for await (const chunk of stream) {
+      fullContent += chunk;
+    }
+    return { content: fullContent };
   } catch (error) {
     console.error("AI Service Error:", error);
     return {
@@ -76,12 +68,17 @@ export async function saveDivination(lines: number[], interpretation: string, ti
  */
 export async function* askAIStream(endpoint: string, body: any): AsyncGenerator<string> {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${import.meta.env.VITE_API_URL || ''}${endpoint}`, {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  const response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
+    headers,
     body: JSON.stringify(body)
   });
 

@@ -88,7 +88,12 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
         body: JSON.stringify({ phone: phoneNumber, password })
       });
       
-      const data = await response.json();
+      const text = await response.text();
+      if (!text) {
+        throw new Error('服务器响应为空，请稍后重试');
+      }
+      
+      const data = JSON.parse(text);
 
       if (!response.ok) {
         throw new Error(data.detail || 'Authentication failed');
@@ -96,7 +101,6 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
       
       if (data.access_token) {
         localStorage.setItem('token', data.access_token);
-        // Using window.location.href instead of reload(true) for more consistent cross-browser "jump"
         window.location.href = '/'; 
       }
     } catch (error: any) {

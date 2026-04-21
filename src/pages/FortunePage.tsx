@@ -91,7 +91,7 @@ export default function FortunePage() {
     const cacheKey = `spirit_v2_diary_${profile.id}_${todayStr}`;
     const cached = cacheService.get<string>(cacheKey);
 
-    if (cached) {
+    if (cached && !cached.includes("天机混沌")) {
       setSpiritDiary(cached);
     } else {
       fetchDiary();
@@ -106,14 +106,25 @@ export default function FortunePage() {
         2. 字数在80字左右，用语亲切、现代、有启发感。
         3. 重点描述今日的心境建议或行动契机，不要有说教感。`;
 
-        const res = await askFortuneAI(prompt, null, "今日灵启");
-        if (res.content) {
-          setSpiritDiary(res.content);
-          cacheService.set(cacheKey, res.content, getSecondsUntilEndOfDay());
+        setSpiritDiary("");
+        const stream = askAIStream('/api/ai/fortune', { query: prompt, context: null, title: "今日灵启" });
+        let fullContent = "";
+        let firstChunk = true;
+        
+        for await (const chunk of stream) {
+          fullContent += chunk;
+          setSpiritDiary(fullContent);
+          if (firstChunk) {
+            setIsDiaryLoading(false);
+            firstChunk = false;
+          }
+        }
+
+        if (fullContent && !fullContent.includes("天机混沌")) {
+          cacheService.set(cacheKey, fullContent, getSecondsUntilEndOfDay());
         }
       } catch (e) {
         setSpiritDiary("今日气场平稳。适合静心思考，在平凡中寻找突破的契机。保持专注，好运自然降临。");
-      } finally {
         setIsDiaryLoading(false);
       }
     }

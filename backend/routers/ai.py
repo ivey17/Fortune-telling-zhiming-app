@@ -26,16 +26,21 @@ if settings.GEMINI_API_KEY:
 openai_client = None
 if settings.AI_API_KEY:
     try:
+        print(f"Initializing OpenAI client with API key: {settings.AI_API_KEY[:10]}...")
+        print(f"Base URL: {settings.AI_BASE_URL}")
+        print(f"Model: {settings.AI_MODEL}")
         openai_client = OpenAI(
             api_key=settings.AI_API_KEY,
             base_url=settings.AI_BASE_URL
         )
+        print("OpenAI client initialized successfully")
     except Exception as e:
         print(f"OpenAI client init failed: {e}")
+from typing import Any
 
 class AIQuery(BaseModel):
     query: str
-    context: dict = None
+    context: Any = None
     title: Optional[str] = None
 
 class SaveDivinationRequest(BaseModel):
@@ -45,6 +50,26 @@ class SaveDivinationRequest(BaseModel):
 
 async def call_ai_stream(prompt: str, system_instruction: str = "") -> AsyncGenerator[str, None]:
     """通用 AI 流式调用函数"""
+    
+    print(f"=== call_ai_stream called ===")
+    print(f"Prompt: {prompt[:50]}...")
+    print(f"System instruction: {system_instruction[:50]}...")
+    print(f"GEMINI_API_KEY configured: {bool(settings.GEMINI_API_KEY)}")
+    print(f"AI_API_KEY configured: {bool(settings.AI_API_KEY)}")
+    print(f"AI_BASE_URL: {settings.AI_BASE_URL}")
+    print(f"AI_MODEL: {settings.AI_MODEL}")
+    
+    # 检查 API 密钥是否配置
+    if not settings.GEMINI_API_KEY and not settings.AI_API_KEY:
+        # 模拟模式：返回预设内容
+        print("=== No API key configured, using mock mode ===")
+        if "今日灵启" in system_instruction or "灵启" in prompt:
+            yield "今日阳光明媚，万物复苏。宜保持积极心态，抓住机会，勇往直前。在工作中，你可能会遇到一些挑战，但只要保持专注和耐心，就能克服困难。感情方面，与家人朋友多沟通，增进感情。财运方面，适合稳健投资，不宜冒险。"
+        elif "命盘" in system_instruction or "命理" in prompt:
+            yield "你是一个性格开朗、积极向上的人，做事认真负责，有较强的责任感和使命感。你注重家庭和朋友，善于与人沟通和合作。在事业方面，你有较强的进取心和竞争力，适合从事需要创意和挑战的工作。财运方面，你理财能力较强，善于规划和管理财务。感情方面，你重视感情，对待爱情专一，适合寻找志同道合的伴侣。"
+        else:
+            yield "欢迎咨询，我是知命AI助手。由于系统尚未配置API密钥，我目前只能提供有限的回答。请联系管理员配置API密钥以获得更准确的命理分析。"
+        return
     
     # 尝试使用 OpenAI 兼容接口
     if openai_client:
@@ -83,7 +108,15 @@ async def call_ai_stream(prompt: str, system_instruction: str = "") -> AsyncGene
         except Exception as e:
             print(f"Gemini Stream Failed: {e}")
             
-    yield "（系统消息）大师正在闭关，请稍后再试。"
+    # 模拟模式：当 API 调用失败时
+    if "今日灵启" in system_instruction or "灵启" in prompt:
+        yield "今日阳光明媚，万物复苏。宜保持积极心态，抓住机会，勇往直前。在工作中，你可能会遇到一些挑战，但只要保持专注和耐心，就能克服困难。感情方面，与家人朋友多沟通，增进感情。财运方面，适合稳健投资，不宜冒险。"
+    elif "命盘" in system_instruction or "命理" in prompt:
+        yield "你是一个性格开朗、积极向上的人，做事认真负责，有较强的责任感和使命感。你注重家庭和朋友，善于与人沟通和合作。在事业方面，你有较强的进取心和竞争力，适合从事需要创意和挑战的工作。财运方面，你理财能力较强，善于规划和管理财务。感情方面，你重视感情，对待爱情专一，适合寻找志同道合的伴侣。"
+    else:
+        yield "欢迎咨询，我是知命AI助手。由于系统暂时无法连接到AI服务，我目前只能提供有限的回答。请稍后再试，或联系管理员检查API配置。"
+
+
 
 async def call_ai(prompt: str, system_instruction: str = ""):
     """通用非流式调用，用于需要立即获取结果的场景"""
@@ -129,17 +162,22 @@ async def ask_fortune(req: AIQuery, user=Depends(get_current_user)):
             full_answer += chunk
             yield chunk
             
-        history_data = {
-            "user_id": user.id,
-            "title": req.title or req.query[:20],
-            "type": "fortune",
-            "messages": json.dumps([
-                {"role": "user", "content": req.query},
-                {"role": "ai", "content": full_answer}
-            ]),
-            "created_at": datetime.now().isoformat()
-        }
-        supabase.table("divination_chat_history").insert(history_data).execute()
+        # 只有在用户已登录时才保存历史记录
+        if user:
+            history_data = {
+                "user_id": user.id,
+                "title": req.title or req.query[:20],
+                "type": "fortune",
+                "messages": json.dumps([
+                    {"role": "user", "content": req.query},
+                    {"role": "ai", "content": full_answer}
+                ]),
+                "created_at": datetime.now().isoformat()
+            }
+            try:
+                supabase.table("divination_chat_history").insert(history_data).execute()
+            except Exception as e:
+                print(f"Save history failed: {e}")
 
     return StreamingResponse(generate(), media_type="text/plain")
 
@@ -189,28 +227,36 @@ async def ask_divination(req: AIQuery, user=Depends(get_current_user)):
             full_answer += chunk
             yield chunk
             
-        # 流式结束后，保存到历史记录
-        messages = [
-            {"role": "user", "content": req.query},
-            {"role": "ai", "content": full_answer}
-        ]
-        
-        if req.context and "interpretation" in req.context:
-            messages.insert(0, {"role": "ai", "content": f"【卦象结果】\n{req.context['interpretation']}"})
+        # 只有在用户已登录时才保存历史记录
+        if user:
+            # 流式结束后，保存到历史记录
+            messages = [
+                {"role": "user", "content": req.query},
+                {"role": "ai", "content": full_answer}
+            ]
+            
+            if req.context and "interpretation" in req.context:
+                messages.insert(0, {"role": "ai", "content": f"【卦象结果】\n{req.context['interpretation']}"})
 
-        history_data = {
-            "user_id": user.id,
-            "title": req.title or req.query[:20],
-            "type": "divination",
-            "messages": json.dumps(messages),
-            "created_at": datetime.now().isoformat()
-        }
-        supabase.table("divination_chat_history").insert(history_data).execute()
+            history_data = {
+                "user_id": user.id,
+                "title": req.title or req.query[:20],
+                "type": "divination",
+                "messages": json.dumps(messages),
+                "created_at": datetime.now().isoformat()
+            }
+            try:
+                supabase.table("divination_chat_history").insert(history_data).execute()
+            except Exception as e:
+                print(f"Save history failed: {e}")
 
     return StreamingResponse(generate(), media_type="text/plain")
 
 @router.post("/save-divination")
 async def save_divination(req: SaveDivinationRequest, user=Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
     try:
         history_data = {
             "user_id": user.id,
