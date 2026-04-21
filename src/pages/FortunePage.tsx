@@ -126,7 +126,13 @@ export default function FortunePage() {
           throw new Error("AI Stream returned empty content");
         }
       } catch (e) {
-        setSpiritDiary("今日气场平稳。适合静心思考，在平凡中寻找突破的契机。保持专注，好运自然降临。");
+        console.error('Diary fetch failed', e);
+        if (fullContent && fullContent.length > 10) {
+          cacheService.set(cacheKey, fullContent + "...", getSecondsUntilEndOfDay());
+          setSpiritDiary(fullContent + "...");
+        } else {
+          setSpiritDiary("今日气场平稳。适合静心思考，在平凡中寻找突破的契机。保持专注，好运自然降临。");
+        }
         setIsDiaryLoading(false);
       }
     }

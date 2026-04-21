@@ -71,12 +71,16 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
         
         if (fullContent && !fullContent.includes("天机混沌")) {
           cacheService.set(cacheKey, fullContent, 60 * 60 * 24 * 7);
-          refreshHistory();
         } else if (!fullContent) {
           throw new Error("AI Stream returned empty content");
         }
       } catch (e) {
         console.error('Deep analysis failed', e);
+        // 遇到超时等错误时，保留已生成的文本并缓存，防止切换页面后丢失
+        if (fullContent && fullContent.length > 10) {
+          cacheService.set(cacheKey, fullContent + "...", 60 * 60 * 24 * 7);
+          setDeepAnalysis(fullContent + "...");
+        }
       } finally {
         setIsAnalyzing(false);
       }
