@@ -72,6 +72,8 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
         if (fullContent && !fullContent.includes("天机混沌")) {
           cacheService.set(cacheKey, fullContent, 60 * 60 * 24 * 7);
           refreshHistory();
+        } else if (!fullContent) {
+          throw new Error("AI Stream returned empty content");
         }
       } catch (e) {
         console.error('Deep analysis failed', e);

@@ -122,6 +122,8 @@ export default function FortunePage() {
 
         if (fullContent && !fullContent.includes("天机混沌")) {
           cacheService.set(cacheKey, fullContent, getSecondsUntilEndOfDay());
+        } else if (!fullContent) {
+          throw new Error("AI Stream returned empty content");
         }
       } catch (e) {
         setSpiritDiary("今日气场平稳。适合静心思考，在平凡中寻找突破的契机。保持专注，好运自然降临。");
