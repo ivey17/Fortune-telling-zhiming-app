@@ -1,8 +1,10 @@
-import { ChevronLeft, ChevronRight, Sparkles, X, Clock, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, X, Clock, AlertCircle, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '../lib/utils';
 import { Solar, Lunar } from 'lunar-javascript';
+import { useUser } from '../contexts/UserContext';
+import { checkDayPersonalized } from '../lib/bazi';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -14,18 +16,23 @@ const ASSISTANTS = [
 ];
 
 export default function CalendarPage() {
+  const { profile } = useUser();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
   const [selectedResult, setSelectedResult] = useState<{ label: string, dates: { month: string, day: number }[] } | null>(null);
 
-  // Update current time every 10 seconds for the fortune card
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentDate(new Date());
     }, 10000);
     return () => clearInterval(timer);
   }, []);
+
+  const personalizedData = useMemo(() => {
+    if (!profile?.birth_date) return null;
+    return checkDayPersonalized(profile.birth_date, selectedDay);
+  }, [profile?.birth_date, selectedDay]);
 
   const lunarData = useMemo(() => {
     const solar = Solar.fromDate(selectedDay);
@@ -44,7 +51,6 @@ export default function CalendarPage() {
   }, [selectedDay]);
 
   const currentFortune = useMemo(() => {
-    // Use precise YMD HMS for real-time Shichen calculation
     const solar = Solar.fromYmdHms(
       currentDate.getFullYear(),
       currentDate.getMonth() + 1,
@@ -55,7 +61,6 @@ export default function CalendarPage() {
     );
     const lunar = solar.getLunar();
     const timeZhi = lunar.getTimeZhi();
-    
     const hourYi = lunar.getTimeYi();
     const hourJi = lunar.getTimeJi();
     
@@ -67,7 +72,7 @@ export default function CalendarPage() {
     };
   }, [currentDate]);
 
-  const [hoveredDayData, setHoveredDayData] = useState<{ day: number, yi: string[], ji: string[] } | null>(null);
+  const [hoveredDayData, setHoveredDayData] = useState<{ day: number, yi: string[], ji: string[], isClash: boolean } | null>(null);
 
   const monthDays = useMemo(() => {
     const year = viewDate.getFullYear();
@@ -81,26 +86,38 @@ export default function CalendarPage() {
       const d = new Date(year, month, i);
       const s = Solar.fromDate(d);
       const l = s.getLunar();
+      
+      let isClash = false;
+      if (profile?.birth_date) {
+        const pd = checkDayPersonalized(profile.birth_date, d);
+        isClash = pd?.isClash || false;
+      }
+
       days.push({
         date: d,
         day: i,
         yi: l.getDayYi().slice(0, 3),
         ji: l.getDayJi().slice(0, 3),
-        isToday: d.toDateString() === new Date().toDateString()
+        isToday: d.toDateString() === new Date().toDateString(),
+        isClash
       });
     }
     return days;
-  }, [viewDate]);
+  }, [viewDate, profile?.birth_date]);
 
   const handleAssistantClick = (assistant: typeof ASSISTANTS[0]) => {
     const results: { month: string, day: number }[] = [];
     let checkDate = new Date();
     
-    // Search for the next 60 days
     for (let i = 0; i < 60 && results.length < 3; i++) {
       const d = new Date(checkDate.getTime() + i * 24 * 60 * 60 * 1000);
       const l = Solar.fromDate(d).getLunar();
       if (l.getDayYi().includes(assistant.filter)) {
+        // Also check if it clashes with user
+        if (profile?.birth_date) {
+          const pd = checkDayPersonalized(profile.birth_date, d);
+          if (pd?.isClash) continue; // Skip clashing days for assistants
+        }
         results.push({
           month: (d.getMonth() + 1) + '月',
           day: d.getDate()
@@ -108,10 +125,7 @@ export default function CalendarPage() {
       }
     }
     
-    setSelectedResult({ 
-      label: assistant.label, 
-      dates: results
-    });
+    setSelectedResult({ label: assistant.label, dates: results });
   };
 
   const changeMonth = (offset: number) => {
@@ -207,7 +221,7 @@ export default function CalendarPage() {
                   "relative flex flex-col items-center justify-center h-12 group transition-all",
                   d ? "cursor-pointer" : "pointer-events-none"
                 )}
-                onMouseEnter={() => d && setHoveredDayData({ day: d.day, yi: d.yi, ji: d.ji })}
+                onMouseEnter={() => d && setHoveredDayData({ day: d.day, yi: d.yi, ji: d.ji, isClash: d.isClash })}
                 onMouseLeave={() => setHoveredDayData(null)}
                 onClick={() => d && setSelectedDay(d.date)}
               >
@@ -222,10 +236,14 @@ export default function CalendarPage() {
                     <span className={cn(
                       "font-bold relative z-10 transition-colors",
                       selectedDay.toDateString() === d.date.toDateString() ? 'text-primary' : 'text-on-surface/60 group-hover:text-primary',
-                      d.isToday && "underline decoration-primary underline-offset-4"
+                      d.isToday && "underline decoration-primary underline-offset-4",
+                      d.isClash && "text-error/80"
                     )}>
                       {d.day}
                     </span>
+                    {d.isClash && (
+                      <div className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-error rounded-full" />
+                    )}
 
                     {/* Hover Tooltip */}
                     <AnimatePresence>
@@ -237,6 +255,12 @@ export default function CalendarPage() {
                           className="absolute bottom-full mb-2 w-40 bg-surface-container-highest/95 backdrop-blur-md p-3 rounded-xl shadow-2xl border border-outline-variant/20 z-[100] pointer-events-none"
                         >
                           <div className="space-y-2 text-left">
+                            {d.isClash && (
+                              <div className="flex gap-2 items-center text-error mb-1">
+                                <ShieldAlert size={10} />
+                                <span className="text-[9px] font-black uppercase tracking-widest">生肖冲煞</span>
+                              </div>
+                            )}
                             <div className="flex gap-2 items-center">
                               <span className="w-1 h-1 rounded-full bg-green-500" />
                               <span className="text-green-400 font-bold text-[9px] bg-green-500/10 px-1 rounded h-4 flex items-center">宜</span>
@@ -266,7 +290,10 @@ export default function CalendarPage() {
             key={selectedDay.toDateString()}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="bg-surface-container rounded-xl p-8 border-l-4 border-primary/40 shadow-xl"
+            className={cn(
+               "bg-surface-container rounded-xl p-8 border-l-4 shadow-xl",
+               personalizedData?.isClash ? "border-error/60" : "border-primary/40"
+            )}
           >
             <div className="flex items-baseline gap-4 mb-6">
               <h3 className="text-5xl font-black font-headline text-on-surface">{selectedDay.getDate()}</h3>
@@ -277,7 +304,18 @@ export default function CalendarPage() {
                 </p>
               </div>
             </div>
+            
             <div className="space-y-6">
+              {personalizedData?.isClash && (
+                <div className="p-4 bg-error/10 border border-error/20 rounded-xl flex items-center gap-3">
+                  <ShieldAlert className="text-error" size={20} />
+                  <div>
+                    <p className="text-sm font-bold text-error">今日冲煞：{personalizedData.clashType}</p>
+                    <p className="text-[10px] text-error/80">检测到今日干支与您的命盘存在冲克，行事宜低调稳健。</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-4">
                 <div className="flex-shrink-0 w-10 h-10 rounded bg-green-500/10 flex items-center justify-center">
                   <span className="text-green-400 font-bold text-sm">宜</span>
@@ -294,14 +332,14 @@ export default function CalendarPage() {
                   <span className="text-on-surface text-lg font-medium">{lunarData.ji.slice(0, 5).join(', ') || '诸事不忌'}</span>
                 </div>
               </div>
+
               <div className="pt-6 border-t border-outline-variant/10">
                 <div className="flex items-center gap-2 mb-2">
                   <Sparkles size={14} className="text-primary fill-primary" />
-                  <span className="text-[10px] uppercase tracking-widest font-bold text-primary/80">AI 智能解读</span>
+                  <span className="text-[10px] uppercase tracking-widest font-bold text-primary/80">天机指引</span>
                 </div>
                 <p className="text-on-surface-variant text-sm leading-relaxed italic">
-                  此日为{lunarData.lunarDate}，{lunarData.gzDay}，五行感应良好。适合安排{lunarData.yi[0]}等事务。
-                  {lunarData.ji.length > 0 && `注意防范${lunarData.ji[0]}相关的突发状况。`}
+                  此日为{lunarData.lunarDate}，{lunarData.gzDay}。{personalizedData?.isClash ? '虽有冲克，但若能保持正念、避开冲突，亦可化解。' : `五行感应${personalizedData?.dayElement ? `偏向${personalizedData.dayElement}` : '良好'}。适合处理日常事务。`}
                 </p>
               </div>
             </div>
@@ -347,7 +385,7 @@ export default function CalendarPage() {
                 </button>
                 <div className="flex items-center gap-2 mb-4">
                   <Sparkles size={16} className="text-primary" />
-                  <h4 className="font-bold text-primary">推荐吉日 (当前日期之后)</h4>
+                  <h4 className="font-bold text-primary">推荐吉日 (已过滤冲煞)</h4>
                 </div>
                 <div className="flex gap-3">
                   {selectedResult.dates.length > 0 ? selectedResult.dates.map((dateObj, idx) => (
@@ -363,7 +401,7 @@ export default function CalendarPage() {
                   )}
                 </div>
                 <p className="text-[10px] text-primary/60 mt-4 leading-relaxed">
-                  以上日期经《玉匣记》标准实时计算。已自动过滤过期日期，为您展示未来最优选。
+                  以上日期经《玉匣记》标准实时计算，并已结合您的八字过滤冲煞日期。
                 </p>
               </motion.div>
             )}

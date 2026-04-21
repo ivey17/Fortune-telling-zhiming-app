@@ -9,6 +9,7 @@ import { fetchWithAuth } from '../services/api';
 import { cn } from '../lib/utils';
 import { useUser } from '../contexts/UserContext';
 import BirthDatePicker from '../components/BirthDatePicker';
+import MarkdownContent from '../components/MarkdownContent';
 
 type ProfileSubPage = 'main' | 'fortune-history' | 'divination-history' | 'coupons' | 'recharge' | 'security' | 'about' | 'change-password' | 'privacy-settings';
 
@@ -776,7 +777,7 @@ export default function ProfilePage() {
                     "max-w-[85%] p-5 rounded-2xl text-sm leading-relaxed",
                     msg.role === 'user' ? "bg-primary text-background font-bold shadow-lg" : "bg-surface-container-highest/40 text-on-surface border border-outline-variant/10"
                   )}>
-                    {msg.content}
+                    {msg.role === 'user' ? msg.content : <MarkdownContent content={msg.content} />}
                   </div>
                 </div>
               ))}

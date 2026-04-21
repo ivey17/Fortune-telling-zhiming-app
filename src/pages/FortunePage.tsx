@@ -1,35 +1,47 @@
-import React, { useState } from 'react';
-import { Sparkles, Briefcase, Wallet, Heart, BrainCircuit, X, MessageCircle, Send, Loader2, Save } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Sparkles, Briefcase, Wallet, Heart, BrainCircuit, X, MessageCircle, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { FortuneScore } from '../types';
-import { askFortuneAI } from '../services/aiService';
+import { askFortuneAI, askAIStream } from '../services/aiService';
 import { cn } from '../lib/utils';
 import { toPng } from 'html-to-image';
 import { Solar } from 'lunar-javascript';
 import ZenLoader from '../components/ZenLoader';
 import MarkdownContent from '../components/MarkdownContent';
-
-const SCORES: FortuneScore[] = [
-  { label: '今日总运', icon: 'Sparkles', score: 4, analysis: '今日受到紫微星感应，整体气场呈现平稳上升态势。天干地支相合，是执行长远计划的好时机。建议保持谦逊，多听取周围人的建议，会有意外之喜。' },
-  { label: '事业功名', icon: 'Briefcase', score: 5, analysis: '驿马星动，事业运势如日中天。你的才华今天特别容易被上司或贵人察觉。不要害怕展示你的新想法，果断出击是今日的成功秘诀。' },
-  { label: '财源利禄', icon: 'Wallet', score: 3, analysis: '财星入库但略有冲撞，正财稳健，偏财则需谨慎。今日不宜进行激进的财务投资或大额消费。守稳根基，理性理财可以有效规避潜在风险。' },
-  { label: '姻缘情感', icon: 'Heart', score: 4, analysis: '红鸾星若隐若现，单身者适合参加社交活动，容易遇到品位一致的新朋友。有伴侣者适宜共同探讨未来计划，感情在深度交流中会进一步升华。' },
-];
+import { useUser } from '../contexts/UserContext';
+import { analyzeBazi } from '../lib/bazi';
+import { cacheService, getSecondsUntilEndOfDay } from '../services/cacheService';
 
 const ICON_MAP: Record<string, any> = {
   Sparkles, Briefcase, Wallet, Heart
 };
 
 export default function FortunePage() {
-  const [selectedFortune, setSelectedFortune] = useState<typeof SCORES[0] | null>(null);
+  const { profile, history, refreshHistory } = useUser();
+  const [selectedFortune, setSelectedFortune] = useState<any | null>(null);
   const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<{role: 'user' | 'ai', content: string}[]>([]);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'ai', content: string }[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   const posterRef = React.useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [spiritDiary, setSpiritDiary] = useState<string | null>(null);
+  const [isDiaryLoading, setIsDiaryLoading] = useState(false);
 
-  React.useEffect(() => {
+  // 加载今日历史对话
+  useEffect(() => {
+    if (!history) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayFortuneHistory = history
+      .filter(h => h.type === 'fortune' && h.date === todayStr)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    if (todayFortuneHistory.length > 0) {
+      const flattenedMessages = todayFortuneHistory.flatMap(h => h.messages);
+      setChatMessages(flattenedMessages);
+    }
+  }, [history]);
+
+  useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(null), 3000);
       return () => clearTimeout(timer);
@@ -44,9 +56,72 @@ export default function FortunePage() {
   const lunarDayOnly = `${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
   const lunarYearOnly = `农历 ${lunar.getYearInGanZhi()}年`;
 
+  const baziData = useMemo(() => {
+    if (!profile?.birth_date) return null;
+    return analyzeBazi(profile.birth_date);
+  }, [profile?.birth_date]);
+
+  // 动态计算分数
+  const scores = useMemo(() => {
+    const baseScores = [
+      { label: '今日总运', icon: 'Sparkles', score: 3, analysis: '今日气场平稳。建议顺势而为，保持平常心。' },
+      { label: '事业功名', icon: 'Briefcase', score: 3, analysis: '工作中规中矩，适合处理日常事务。' },
+      { label: '财源利禄', icon: 'Wallet', score: 3, analysis: '财运平平，宜守不宜攻，谨慎理财。' },
+      { label: '姻缘情感', icon: 'Heart', score: 3, analysis: '感情生活平静，多与伴侣沟通可增进感情。' },
+    ];
+
+    if (!baziData) return baseScores;
+
+    const dayStem = lunar.getDayGan();
+    const isFavorable = baziData.favorableElements.includes({
+      '甲': '木', '乙': '木', '丙': '火', '丁': '火', '戊': '土', '己': '土', '庚': '金', '辛': '金', '壬': '水', '癸': '水'
+    }[dayStem] || '');
+
+    if (isFavorable) {
+      return baseScores.map(s => ({ ...s, score: 5, analysis: '今日受到吉星感应，整体运势上升。适合执行重要计划。' }));
+    }
+    return baseScores;
+  }, [baziData, lunar]);
+
+  // 获取灵启日记并缓存
+  useEffect(() => {
+    if (!profile?.id || !baziData) return;
+
+    const todayStr = now.toISOString().split('T')[0];
+    const cacheKey = `spirit_v2_diary_${profile.id}_${todayStr}`;
+    const cached = cacheService.get<string>(cacheKey);
+
+    if (cached) {
+      setSpiritDiary(cached);
+    } else {
+      fetchDiary();
+    }
+
+    async function fetchDiary() {
+      setIsDiaryLoading(true);
+      try {
+        const prompt = `请作为生活洞察者，根据今日干支[${lunar.getDayInGanZhi()}]为日主[${baziData?.pillars[2].stem}]写一段今日灵启。
+        要求：
+        1. 采用自然连贯的段落，严禁使用 ### 或列表符号。
+        2. 字数在80字左右，用语亲切、现代、有启发感。
+        3. 重点描述今日的心境建议或行动契机，不要有说教感。`;
+
+        const res = await askFortuneAI(prompt, null, "今日灵启");
+        if (res.content) {
+          setSpiritDiary(res.content);
+          cacheService.set(cacheKey, res.content, getSecondsUntilEndOfDay());
+        }
+      } catch (e) {
+        setSpiritDiary("今日气场平稳。适合静心思考，在平凡中寻找突破的契机。保持专注，好运自然降临。");
+      } finally {
+        setIsDiaryLoading(false);
+      }
+    }
+  }, [profile?.id, baziData, lunar]);
+
   const chatScrollRef = React.useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
@@ -54,33 +129,44 @@ export default function FortunePage() {
 
   const handleSendChat = async () => {
     if (!chatInput.trim() || isAiLoading) return;
-    
+
     const userMsg = chatInput;
     setChatMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setChatInput('');
     setIsAiLoading(true);
 
     try {
-      const response = await askFortuneAI(userMsg);
-      if (response && response.content) {
-        setChatMessages(prev => [...prev, { role: 'ai', content: response.content }]);
-      } else {
-        throw new Error('Empty response');
+      setChatMessages(prev => [...prev, { role: 'ai', content: '' }]);
+      let fullContent = '';
+      
+      for await (const chunk of askAIStream('/api/ai/fortune', { 
+        query: userMsg, 
+        context: { bazi: baziData, day: lunar.getDayInGanZhi() },
+        title: userMsg
+      })) {
+        fullContent += chunk;
+        setChatMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last.role === 'ai') {
+            return [...prev.slice(0, -1), { ...last, content: fullContent }];
+          }
+          return prev;
+        });
       }
+      
+      refreshHistory();
     } catch (error) {
-      console.error('Chat error:', error);
       setChatMessages(prev => [...prev, { role: 'ai', content: '（系统波动）星象暂时模糊，请稍后再试。' }]);
     } finally {
       setIsAiLoading(false);
     }
   };
-
   const handleDownloadPoster = async () => {
     if (!posterRef.current) return;
     try {
       const dataUrl = await toPng(posterRef.current, {
         cacheBust: true,
-        backgroundColor: '#120b1e', // Match the app background
+        backgroundColor: '#120b1e',
       });
       const link = document.createElement('a');
       link.download = `知命运势-${lunar.getYearInGanZhi()}-${lunar.getMonthInChinese()}${lunar.getDayInChinese()}.png`;
@@ -89,7 +175,6 @@ export default function FortunePage() {
       setShowShareCard(false);
       setToast('海报已保存至相册，快去分享吧！');
     } catch (err) {
-      console.error('海报生成失败', err);
       alert('海报生成失败，请尝试手动截图。');
     }
   };
@@ -97,7 +182,7 @@ export default function FortunePage() {
   return (
     <div className="space-y-10 pb-10">
       {/* Title */}
-      <motion.section 
+      <motion.section
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex justify-between items-end"
@@ -121,20 +206,20 @@ export default function FortunePage() {
       <section className="flex gap-4 items-center justify-center">
         <div className="flex-1 bg-surface-container-low p-4 rounded-xl flex items-center justify-center gap-3">
           <span className="w-2 h-2 rounded-full bg-green-400/60 shadow-[0_0_8px_rgba(74,222,128,0.4)]"></span>
-          <span className="font-headline font-bold text-on-surface">宜：签约·出行</span>
+          <span className="font-headline font-bold text-on-surface">宜：{lunar.getDayYi().slice(0, 2).join('·') || '诸事不宜'}</span>
         </div>
         <div className="flex-1 bg-surface-container-low p-4 rounded-xl flex items-center justify-center gap-3">
           <span className="w-2 h-2 rounded-full bg-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.4)]"></span>
-          <span className="font-headline font-bold text-on-surface">忌：动土·嫁娶</span>
+          <span className="font-headline font-bold text-on-surface">忌：{lunar.getDayJi().slice(0, 2).join('·') || '诸事不忌'}</span>
         </div>
       </section>
 
       {/* Fortune Scores Grid */}
       <section className="grid grid-cols-2 gap-4">
-        {SCORES.map((item, idx) => {
+        {scores.map((item, idx) => {
           const Icon = ICON_MAP[item.icon];
           return (
-            <motion.div 
+            <motion.div
               key={item.label}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -150,10 +235,10 @@ export default function FortunePage() {
               </div>
               <div className="flex gap-0.5">
                 {[...Array(5)].map((_, i) => (
-                  <Sparkles 
-                    key={i} 
-                    size={16} 
-                    className={i < item.score ? "text-primary fill-primary" : "text-primary/20"} 
+                  <Sparkles
+                    key={i}
+                    size={16}
+                    className={i < item.score ? "text-primary fill-primary" : "text-primary/20"}
                   />
                 ))}
               </div>
@@ -171,7 +256,7 @@ export default function FortunePage() {
             exit={{ opacity: 0, y: 20 }}
             className="bg-primary/10 border border-primary/20 p-6 rounded-2xl relative overflow-hidden"
           >
-            <button 
+            <button
               onClick={() => setSelectedFortune(null)}
               className="absolute top-4 right-4 text-primary opacity-40 hover:opacity-100 transition-opacity"
             >
@@ -181,36 +266,44 @@ export default function FortunePage() {
               <div className="p-2 bg-primary text-background rounded-lg">
                 {React.createElement(ICON_MAP[selectedFortune.icon], { size: 18 })}
               </div>
-              <h3 className="font-headline font-bold text-xl text-primary">{selectedFortune.label}深度解析</h3>
+              <h3 className="font-headline font-bold text-xl text-primary">{selectedFortune.label}解析</h3>
             </div>
             <p className="font-body text-on-surface leading-relaxed text-sm">
               {selectedFortune.analysis}
             </p>
             <div className="mt-6 flex items-center gap-2 text-[10px] text-primary/60 font-label tracking-widest uppercase">
               <Sparkles size={12} />
-              知命 AI 运势引擎计算中
+              知命引擎动态计算中
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* AI Diary */}
-      <section className="glass-card p-8 rounded-[2rem] border border-outline-variant/10 relative overflow-hidden">
+      {/* AI Spirit Diary */}
+      <section className="bg-surface-container-low p-8 rounded-[2rem] border border-primary/5 shadow-xl relative overflow-hidden">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-8 h-8 rounded-lg bg-primary-container/20 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
             <BrainCircuit className="text-primary" size={18} />
           </div>
-          <h3 className="font-headline font-bold text-primary">灵启日记</h3>
+          <h3 className="font-headline font-bold text-primary">今日灵启</h3>
         </div>
-        <p className="font-body text-lg leading-relaxed text-on-surface/90">
-          今日天干丁火与命盘食神相合，虽有忙碌之象，但在事业规划上容易获得贵人点拨。建议在午后时刻关注西南方位的讯息，或许能化解多日以来的决策困境。情绪平稳是今日致胜的关键。
-        </p>
+        {isDiaryLoading ? (
+          <div className="py-6 flex flex-col items-center gap-4">
+            <ZenLoader message="正在同步今日能量..." />
+          </div>
+        ) : (
+          <div className="relative">
+            <p className="text-on-surface/90 font-medium leading-relaxed text-sm md:text-base">
+              {spiritDiary || "完善生辰信息，开启每日指引。"}
+            </p>
+          </div>
+        )}
         <div className="mt-8 flex justify-end">
-          <span className="font-headline text-[10px] tracking-widest text-primary/40">知命 AI 洞察报告</span>
+          <span className="font-headline text-[10px] tracking-widest text-primary/30 uppercase italic">Daily Insight Report</span>
         </div>
       </section>
 
-      {/* Chat Section - Only show if there are messages */}
+      {/* Chat Section */}
       {chatMessages.length > 0 && (
         <section className="space-y-6 pt-4 border-t border-outline-variant/10">
           <div className="flex items-center gap-3">
@@ -222,7 +315,7 @@ export default function FortunePage() {
 
           <div className="space-y-4 pb-32">
             {chatMessages.map((msg, i) => (
-              <motion.div 
+              <motion.div
                 key={i}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -233,15 +326,11 @@ export default function FortunePage() {
               >
                 <div className={cn(
                   "p-4 rounded-2xl text-sm leading-relaxed shadow-sm",
-                  msg.role === 'user' 
-                    ? "bg-primary text-background font-bold rounded-tr-none whitespace-pre-wrap" 
+                  msg.role === 'user'
+                    ? "bg-primary text-background font-bold rounded-tr-none whitespace-pre-wrap"
                     : "bg-surface-container-low text-on-surface rounded-tl-none border border-outline-variant/10"
                 )}>
-                  {msg.role === 'user' ? (
-                    msg.content
-                  ) : (
-                    <MarkdownContent content={msg.content} />
-                  )}
+                  {msg.role === 'user' ? msg.content : <MarkdownContent content={msg.content} />}
                 </div>
               </motion.div>
             ))}
@@ -250,12 +339,10 @@ export default function FortunePage() {
                 <ZenLoader message="AI 正在解析星象能量..." />
               </div>
             )}
-            <div ref={chatScrollRef} />
           </div>
         </section>
       )}
 
-      {/* Padding for bottom bar if no chat */}
       <div className="h-32" />
 
       {/* Fixed Input at bottom */}
@@ -264,9 +351,9 @@ export default function FortunePage() {
           <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
             <MessageCircle size={18} className="text-primary/60" />
           </div>
-          <input 
-            className="w-full bg-surface-container-highest/90 backdrop-blur-md border border-outline-variant/20 rounded-2xl py-5 pl-14 pr-16 text-on-surface placeholder-on-surface-variant/40 focus:ring-1 focus:ring-primary shadow-2xl outline-none" 
-            placeholder="咨询今日运势细节..." 
+          <input
+            className="w-full bg-surface-container-highest/90 backdrop-blur-md border border-outline-variant/20 rounded-2xl py-5 pl-14 pr-16 text-on-surface placeholder-on-surface-variant/40 focus:ring-1 focus:ring-primary shadow-2xl outline-none"
+            placeholder="咨询今日运势细节..."
             type="text"
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
@@ -277,7 +364,7 @@ export default function FortunePage() {
               }
             }}
           />
-          <button 
+          <button
             type="button"
             onClick={handleSendChat}
             disabled={isAiLoading || !chatInput.trim()}
@@ -296,21 +383,20 @@ export default function FortunePage() {
       <AnimatePresence>
         {showShareCard && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-12 overflow-y-auto">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowShareCard(false)}
               className="fixed inset-0 bg-black/90 backdrop-blur-md"
             />
-            
-            <motion.div 
+
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 30 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 30 }}
               className="relative w-full max-w-sm bg-surface-container rounded-[2.5rem] overflow-hidden shadow-2xl border border-primary/20 flex flex-col"
             >
-              {/* Poster Content Area */}
               <div ref={posterRef} className="p-8 space-y-8 bento-texture bg-gradient-to-b from-primary/10 to-transparent bg-[#120b1e]">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
@@ -337,10 +423,10 @@ export default function FortunePage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="p-6 bg-surface-container-highest/40 rounded-3xl border border-primary/10 backdrop-blur-sm">
                     <p className="text-sm text-on-surface leading-relaxed text-justify italic">
-                      “今日天干丁火与命盘食神相合，虽有忙碌之象，但在事业规划上容易获得贵人点拨。情绪平稳是今日致胜的关键。”
+                      {spiritDiary || "天机待显，开启命盘即可查看专属指引。"}
                     </p>
                   </div>
                 </div>
@@ -348,18 +434,18 @@ export default function FortunePage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-green-400/5 p-4 rounded-2xl border border-green-400/10">
                     <p className="text-[10px] text-green-400/60 font-bold mb-1">宜</p>
-                    <p className="text-sm font-bold text-on-surface">签约 · 出行</p>
+                    <p className="text-sm font-bold text-on-surface">{lunar.getDayYi().slice(0, 2).join('·') || '诸事不宜'}</p>
                   </div>
                   <div className="bg-red-400/5 p-4 rounded-2xl border border-red-400/10">
                     <p className="text-[10px] text-red-400/60 font-bold mb-1">忌</p>
-                    <p className="text-sm font-bold text-on-surface">动土 · 嫁娶</p>
+                    <p className="text-sm font-bold text-on-surface">{lunar.getDayJi().slice(0, 2).join('·') || '诸事不忌'}</p>
                   </div>
                 </div>
 
                 <div className="pt-8 border-t border-outline-variant/10 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-center">
-                       <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Lucky" alt="qr" className="w-5 h-5 opacity-40" />
+                      <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Lucky" alt="qr" className="w-5 h-5 opacity-40" />
                     </div>
                     <p className="text-[8px] text-on-surface-variant/40 leading-tight">
                       长按保存海报<br />
@@ -370,15 +456,14 @@ export default function FortunePage() {
                 </div>
               </div>
 
-              {/* Action Bar */}
               <div className="p-4 bg-surface-container-highest border-t border-outline-variant/10 flex gap-4">
-                <button 
+                <button
                   onClick={() => setShowShareCard(false)}
                   className="flex-1 py-4 text-sm font-bold text-on-surface-variant/60 hover:text-on-surface transition-colors"
                 >
                   取消
                 </button>
-                <button 
+                <button
                   onClick={handleDownloadPoster}
                   className="flex-[2] py-4 bg-primary text-background rounded-2xl font-bold text-sm shadow-xl shadow-primary/10"
                 >

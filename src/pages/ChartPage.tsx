@@ -1,169 +1,114 @@
-import { Info, Sparkles, TrendingUp, ShieldCheck, Loader2, Edit3, Save, X, Mars, Venus } from 'lucide-react';
+import { Info, Sparkles, TrendingUp, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useMemo, useEffect } from 'react';
-import { Solar } from 'lunar-javascript';
-import { fetchWithAuth } from '../services/api';
 import { cn } from '../lib/utils';
 import { useUser } from '../contexts/UserContext';
+import { analyzeBazi } from '../lib/bazi';
+import { cacheService } from '../services/cacheService';
+import { askFortuneAI } from '../services/aiService';
+import MarkdownContent from '../components/MarkdownContent';
+import ZenLoader from '../components/ZenLoader';
 
 export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void }) {
+  const { refreshHistory } = useUser();
   const { profile } = useUser();
   const [selectedYear, setSelectedYear] = useState<any>(null);
+  const [deepAnalysis, setDeepAnalysis] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // 直接从 localStorage 读取，并监听 storage 事件以实现实时同步
+  // 监听隐私设置
   const [hideBirth, setHideBirth] = useState<boolean>(
     () => localStorage.getItem('hideBirth') === 'true'
   );
 
   useEffect(() => {
-    // 每次组件挂载/Tab 切换时重新读取最新值
     setHideBirth(localStorage.getItem('hideBirth') === 'true');
-
-    const onStorage = () => {
-      setHideBirth(localStorage.getItem('hideBirth') === 'true');
-    };
+    const onStorage = () => setHideBirth(localStorage.getItem('hideBirth') === 'true');
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   const baziData = useMemo(() => {
     if (!profile?.birth_date) return null;
-    
-    try {
-      const date = new Date(profile.birth_date);
-      const solar = Solar.fromYmdHms(
-        date.getFullYear(),
-        date.getMonth() + 1,
-        date.getDate(),
-        date.getHours(),
-        date.getMinutes(),
-        0
-      );
-      const lunar = solar.getLunar();
-      if (!lunar) return { error: true };
-      const eightChar = lunar.getEightChar();
-      if (!eightChar) return { error: true };
+    return analyzeBazi(profile.birth_date);
+  }, [profile?.birth_date]);
 
-      // Calculation for Pattern (格局)
-      const getPattern = () => {
-        const monthZhi = eightChar.getMonthZhi();
-        const dayGan = eightChar.getDayGan();
-        
-        // Simplified pattern recognition based on Month Branch's hidden stems
-        const zhiHideGans: Record<string, string[]> = {
-          '子': ['癸'], '丑': ['己', '癸', '辛'], '寅': ['甲', '丙', '戊'], '卯': ['乙'],
-          '辰': ['戊', '乙', '癸'], '巳': ['丙', '庚', '戊'], '午': ['丁', '己'], '未': ['己', '丁', '乙'],
-          '申': ['庚', '壬', '戊'], '酉': ['辛'], '戌': ['戊', '辛', '丁'], '亥': ['壬', '甲']
-        };
+  // 获取 AI 深度解析并缓存
+  useEffect(() => {
+    if (!profile?.birth_date || hideBirth || !baziData) return;
 
-        const hiddenGans = zhiHideGans[monthZhi] || [];
-        const mainHiddenGan = hiddenGans[0];
-        
-        const getShiShen = (gan: string, dayGan: string) => {
-          const relations: Record<string, Record<string, string>> = {
-            '甲': { '甲': '比肩', '乙': '劫财', '丙': '食神', '丁': '伤官', '戊': '偏财', '己': '正财', '庚': '七杀', '辛': '正官', '壬': '偏印', '癸': '正印' },
-            '乙': { '甲': '劫财', '乙': '比肩', '丙': '伤官', '丁': '食神', '戊': '正财', '己': '偏财', '庚': '正官', '辛': '七杀', '壬': '正印', '癸': '偏印' },
-            '丙': { '甲': '偏印', '乙': '正印', '丙': '比肩', '丁': '劫财', '戊': '食神', '己': '伤官', '庚': '偏财', '辛': '正财', '壬': '七杀', '癸': '正官' },
-            '丁': { '甲': '正印', '乙': '偏印', '丙': '劫财', '丁': '比肩', '戊': '伤官', '己': '食神', '庚': '正财', '辛': '偏财', '壬': '正官', '癸': '七杀' },
-            '戊': { '甲': '七杀', '乙': '正官', '丙': '偏印', '丁': '正印', '戊': '比肩', '己': '劫财', '庚': '食神', '辛': '伤官', '壬': '偏财', '癸': '正财' },
-            '己': { '甲': '正官', '乙': '七杀', '丙': '正印', '丁': '偏印', '戊': '劫财', '己': '比肩', '庚': '伤官', '辛': '食神', '壬': '正财', '癸': '偏财' },
-            '庚': { '甲': '偏财', '乙': '正财', '丙': '七杀', '丁': '正官', '戊': '偏印', '己': '正印', '庚': '比肩', '辛': '劫财', '壬': '食神', '癸': '伤官' },
-            '辛': { '甲': '正财', '乙': '偏财', '丙': '正官', '丁': '七杀', '戊': '正印', '己': '偏印', '庚': '劫财', '辛': '比肩', '壬': '伤官', '癸': '食神' },
-            '壬': { '甲': '食神', '乙': '伤官', '丙': '偏财', '丁': '正财', '戊': '七杀', '己': '正官', '庚': '偏印', '辛': '正印', '壬': '比肩', '癸': '劫财' },
-            '癸': { '甲': '伤官', '乙': '食神', '丙': '正财', '丁': '偏财', '戊': '正官', '己': '七杀', '庚': '正印', '辛': '偏印', '壬': '劫财', '癸': '比肩' },
-          };
-          return relations[dayGan]?.[gan] || '普通';
-        };
+    const cacheKey = `bazi_v2_analysis_${profile.id}`;
+    const cached = cacheService.get<string>(cacheKey);
 
-        const pattern = getShiShen(mainHiddenGan, dayGan);
-        return pattern === '普通' ? '建禄格' : `${pattern}格`;
-      };
-
-      // Calculation for Shen Sha (Stars)
-      const getStars = () => {
-        const stars: string[] = [];
-        const dayGan = eightChar.getDayGan();
-        const yearZhi = eightChar.getYearZhi();
-        const monthZhi = eightChar.getMonthZhi();
-        const dayZhi = eightChar.getDayZhi();
-        const timeZhi = eightChar.getTimeZhi();
-        
-        // Tian Yi
-        const tianYiMap: Record<string, string[]> = {
-          '甲': ['丑', '未'], '戊': ['丑', '未'], '庚': ['丑', '未'],
-          '乙': ['子', '申'], '己': ['子', '申'],
-          '丙': ['亥', '酉'], '丁': ['亥', '酉'],
-          '壬': ['卯', '巳'], '癸': ['卯', '巳'],
-          '辛': ['午', '寅']
-        };
-        const ty = tianYiMap[dayGan] || [];
-        if ([yearZhi, monthZhi, dayZhi, timeZhi].some(z => ty.includes(z))) stars.push('天乙贵人');
-
-        // Wen Chang
-        const wenChangMap: Record<string, string> = { '甲': '巳', '乙': '午', '丙': '申', '丁': '酉', '戊': '申', '己': '酉', '庚': '亥', '辛': '子', '壬': '寅', '癸': '卯' };
-        if ([yearZhi, monthZhi, dayZhi, timeZhi].includes(wenChangMap[dayGan])) stars.push('文昌贵人');
-
-        // Tao Hua
-        const taoHuaMap: Record<string, string> = { '寅': '卯', '午': '卯', '戌': '卯', '申': '酉', '子': '酉', '辰': '酉', '亥': '子', '卯': '子', '未': '子', '巳': '午', '酉': '午', '丑': '午' };
-        if ([monthZhi, dayZhi, timeZhi].includes(taoHuaMap[yearZhi])) stars.push('桃花');
-
-        // Yi Ma
-        const yiMaMap: Record<string, string> = { '申': '寅', '子': '寅', '辰': '寅', '寅': '申', '午': '申', '戌': '申', '巳': '亥', '酉': '亥', '丑': '亥', '亥': '巳', '卯': '巳', '未': '巳' };
-        if ([monthZhi, dayZhi, timeZhi].includes(yiMaMap[yearZhi])) stars.push('驿马');
-
-        return stars.slice(0, 2).join(' / ') || '吉星高照';
-      };
-
-      const getElement = (gan: string, zhi: string) => {
-        const elements: Record<string, string> = {
-          '甲': '木', '乙': '木', '丙': '火', '丁': '火', '戊': '土', '己': '土', '庚': '金', '辛': '金', '壬': '水', '癸': '水',
-          '子': '水', '丑': '土', '寅': '木', '卯': '木', '辰': '土', '巳': '火', '午': '火', '未': '土', '申': '金', '酉': '金', '戌': '土', '亥': '水'
-        };
-        return `${elements[gan] || '?'} / ${elements[zhi] || '?'}`;
-      };
-
-      const getColor = (char: string) => {
-        const elements: Record<string, string> = {
-          '甲': 'text-[#81c784]', '乙': 'text-[#81c784]', '寅': 'text-[#81c784]', '卯': 'text-[#81c784]',
-          '丙': 'text-[#ff8a65]', '丁': 'text-[#ff8a65]', '巳': 'text-[#ff8a65]', '午': 'text-[#ff8a65]',
-          '戊': 'text-[#f2c36b]', '己': 'text-[#f2c36b]', '辰': 'text-[#f2c36b]', '戌': 'text-[#f2c36b]', '丑': 'text-[#f2c36b]', '未': 'text-[#f2c36b]',
-          '庚': 'text-[#cfd8dc]', '辛': 'text-[#cfd8dc]', '申': 'text-[#cfd8dc]', '酉': 'text-[#cfd8dc]',
-          '壬': 'text-[#64b5f6]', '癸': 'text-[#64b5f6]', '子': 'text-[#64b5f6]', '亥': 'text-[#64b5f6]'
-        };
-        return elements[char] || 'text-on-surface';
-      };
-      return {
-        pillars: [
-          { label: '年柱', stem: eightChar.getYearGan(), branch: eightChar.getYearZhi(), stemColor: getColor(eightChar.getYearGan()), branchColor: getColor(eightChar.getYearZhi()), elements: getElement(eightChar.getYearGan(), eightChar.getYearZhi()) },
-          { label: '月柱', stem: eightChar.getMonthGan(), branch: eightChar.getMonthZhi(), stemColor: getColor(eightChar.getMonthGan()), branchColor: getColor(eightChar.getMonthZhi()), elements: getElement(eightChar.getMonthGan(), eightChar.getMonthZhi()) },
-          { label: '日主', stem: eightChar.getDayGan(), branch: eightChar.getDayZhi(), stemColor: getColor(eightChar.getDayGan()), branchColor: getColor(eightChar.getDayZhi()), elements: getElement(eightChar.getDayGan(), eightChar.getDayZhi()), highlight: true },
-          { label: '时柱', stem: eightChar.getTimeGan(), branch: eightChar.getTimeZhi(), stemColor: getColor(eightChar.getTimeGan()), branchColor: getColor(eightChar.getTimeZhi()), elements: getElement(eightChar.getTimeGan(), eightChar.getTimeZhi()) },
-        ],
-        pattern: getPattern(),
-        stars: getStars()
-      };
-
-    } catch (e) {
-      console.error("Bazi calculation error", e);
-      return { error: true };
+    if (cached) {
+      setDeepAnalysis(cached);
+    } else {
+      fetchDeepAnalysis();
     }
-  }, [profile]);
 
-  const baziError = baziData && 'error' in baziData;
+    async function fetchDeepAnalysis() {
+      setIsAnalyzing(true);
+      try {
+        const prompt = `请作为资深命理顾问，为日主[${baziData?.pillars[2].stem}]提供一份专业的人格简评。
+        要求：
+        1. 采用自然连贯的段落，严禁使用 ### 或列表符号分段。
+        2. 字数在100字左右，用语通俗、精准、沉稳。
+        3. 重点点出性格底色与发展建议，不要有大师语气的废话。`;
+        
+        const res = await askFortuneAI(prompt, null, "命盘简评");
+        if (res.content) {
+          setDeepAnalysis(res.content);
+          cacheService.set(cacheKey, res.content, 60 * 60 * 24 * 7);
+          refreshHistory();
+        }
+      } catch (e) {
+        console.error('Deep analysis failed', e);
+      } finally {
+        setIsAnalyzing(false);
+      }
+    }
+  }, [profile?.birth_date, hideBirth, baziData, profile?.id]);
 
-  const pillars = baziData?.pillars || [
+  const getColor = (char: string) => {
+    const elements: Record<string, string> = {
+      '甲': 'text-[#81c784]', '乙': 'text-[#81c784]', '寅': 'text-[#81c784]', '卯': 'text-[#81c784]',
+      '丙': 'text-[#ff8a65]', '丁': 'text-[#ff8a65]', '巳': 'text-[#ff8a65]', '午': 'text-[#ff8a65]',
+      '戊': 'text-[#f2c36b]', '己': 'text-[#f2c36b]', '辰': 'text-[#f2c36b]', '戌': 'text-[#f2c36b]', '丑': 'text-[#f2c36b]', '未': 'text-[#f2c36b]',
+      '庚': 'text-[#cfd8dc]', '辛': 'text-[#cfd8dc]', '申': 'text-[#cfd8dc]', '酉': 'text-[#cfd8dc]',
+      '壬': 'text-[#64b5f6]', '癸': 'text-[#64b5f6]', '子': 'text-[#64b5f6]', '亥': 'text-[#64b5f6]'
+    };
+    return elements[char] || 'text-on-surface';
+  };
+
+  const pillars = baziData?.pillars.map(p => ({
+    ...p,
+    stemColor: getColor(p.stem),
+    branchColor: getColor(p.branch),
+    highlight: p.label === '日柱'
+  })) || [
     { label: '年柱', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置' },
     { label: '月柱', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置' },
-    { label: '日主', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置', highlight: true },
+    { label: '日柱', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置', highlight: true },
     { label: '时柱', stem: '?', branch: '?', stemColor: 'text-outline', branchColor: 'text-outline', elements: '未设置' },
   ];
 
-  const ANNUAL_FORTUNES = [
-    { year: '2026年', text: '丙午', color: 'text-[#ff8a65]', sub: '流年值此', analysis: '今年丙午流年，火气极旺，与命局形成感应。虽然事业压力较大，但贵人运强，适合在稳定中寻求突破。情感方面宜多沟通，避免口舌。' },
-    { year: '2027年', text: '丁未', color: 'text-[#ff8a65]', sub: '展望明岁', analysis: '丁未之年，土气厚重。财运方面有稳步增长的迹象，适合长期投资。事业上需注意团队合作，不可独断专行。身体方面注意脾胃调理。' },
-    { year: '2028年', text: '戊申', color: 'text-[#f2c36b]', sub: '后岁可见', analysis: '戊申流年，申金生水，财源广进。这一年可能是你的一个交接点，可能会有重大的职业变动或人生转折。凡事宜早做准备，顺势而为。' },
-    { year: '2029年', text: '己酉', color: 'text-[#cfd8dc]', sub: '再而可见', analysis: '己酉之年，金气纯正。食伤生财，灵感迸发，适合从事创意或技术类工作。情感生活丰富多彩，单身者有望脱单。' },
-  ];
+  // 动态生成年度运势
+  const ANNUAL_FORTUNES = useMemo(() => {
+    const years = [2026, 2027, 2028, 2029];
+    const ganzhi = ['丙午', '丁未', '戊申', '己酉'];
+    const colors = ['text-[#ff8a65]', 'text-[#ff8a65]', 'text-[#f2c36b]', 'text-[#cfd8dc]'];
+    
+    return years.map((y, i) => {
+      const isFavorable = baziData?.favorableElements.some(el => ganzhi[i].includes(el));
+      return {
+        year: `${y}年`,
+        text: ganzhi[i],
+        color: colors[i],
+        sub: i === 0 ? '流年值此' : '未来展望',
+        analysis: `此年为${ganzhi[i]}年。${isFavorable ? '流年五行对您的命局有正面助益，事业与财运稳步上升，宜积极进取。' : '流年与命局存在一定冲耗，凡事宜稳健为主，注意情绪调节与身体健康。'}建议保持谦逊，多听取贵人建议。`
+      };
+    });
+  }, [baziData]);
 
   return (
     <div className="space-y-10 pb-24">
@@ -175,7 +120,7 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
       <motion.section 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative overflow-hidden rounded-xl bg-surface-container-low p-8 shadow-2xl bento-texture border border-outline-variant/10"
+        className="relative overflow-hidden rounded-xl bg-surface-container-low p-8 shadow-2xl border border-outline-variant/10"
       >
         {(!profile?.birth_date || hideBirth) && (
           <div className="absolute inset-0 z-20 bg-surface-container-low/80 backdrop-blur-md flex items-center justify-center p-6 text-center">
@@ -189,21 +134,12 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
                   {hideBirth ? '为了您的隐私安全，命盘信息已同步隐藏。' : '请先完善您的生辰信息以解锁数字化命盘'}
                 </p>
               </div>
-              {hideBirth ? (
-                <button 
-                  onClick={onGoToProfile}
-                  className="w-full py-3 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold hover:bg-primary/20 transition-all shadow-lg"
-                >
-                  去隐私管理调整
-                </button>
-              ) : (
-                <button 
-                  onClick={onGoToProfile}
-                  className="w-full py-3 bg-primary text-background rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg"
-                >
-                  前往完善资料
-                </button>
-              )}
+              <button 
+                onClick={onGoToProfile}
+                className="w-full py-3 bg-primary text-background rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg"
+              >
+                {hideBirth ? '去设置中心管理' : '前往完善资料'}
+              </button>
             </div>
           </div>
         )}
@@ -245,10 +181,10 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
       {/* Analysis Bento */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: '格局', value: (profile?.birth_date && !hideBirth) ? (baziError ? '解析失败' : (baziData?.pattern || '计算中')) : '—', color: 'text-on-surface' },
-          { label: '辅星', value: (profile?.birth_date && !hideBirth) ? (baziError ? '解析失败' : (baziData?.stars || '计算中')) : '—', color: 'text-on-surface' },
-          { label: '喜用', value: (profile?.birth_date && !hideBirth) ? (baziError ? '—' : '水/木') : '—', color: 'text-primary' },
-          { label: '忌讳', value: (profile?.birth_date && !hideBirth) ? (baziError ? '—' : '火/土') : '—', color: 'text-error' },
+          { label: '格局', value: (profile?.birth_date && !hideBirth) ? (baziData?.pattern || '计算中') : '—', color: 'text-on-surface' },
+          { label: '主星', value: (profile?.birth_date && !hideBirth) ? (baziData?.stars[0] || '吉星') : '—', color: 'text-on-surface' },
+          { label: '喜用', value: (profile?.birth_date && !hideBirth) ? (baziData?.favorableElements.join('/') || '—') : '—', color: 'text-primary' },
+          { label: '忌讳', value: (profile?.birth_date && !hideBirth) ? (baziData?.unfavorableElements.join('/') || '—') : '—', color: 'text-error' },
         ].map((item, idx) => (
           <motion.div 
             key={idx}
@@ -263,36 +199,42 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
         ))}
       </section>
 
-      {/* Detailed Analysis Content */}
-      <motion.section 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-surface-container-low p-8 rounded-xl border border-outline-variant/5 shadow-inner relative overflow-hidden"
-      >
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/40 via-primary to-primary/40" />
-        <div className="flex items-center gap-3 mb-6">
+      {/* AI Detailed Analysis */}
+      <section className="space-y-6">
+        <div className="flex items-center gap-2 px-2">
           <Sparkles className="text-primary" size={20} />
-          <h3 className="font-headline font-bold text-lg">命盘深度解析</h3>
+          <h3 className="font-headline font-bold text-lg text-primary">命理深度报告</h3>
         </div>
-        <div className="font-body text-sm text-on-surface-variant leading-relaxed text-justify space-y-6">
+
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-surface-container-low p-8 rounded-3xl border border-outline-variant/10 shadow-lg relative min-h-[160px] flex flex-col justify-center"
+        >
           {(!profile?.birth_date || hideBirth) ? (
-             <p className="italic opacity-60">
-               {hideBirth ? '由于您的隐私保护设置，AI 解析内容已暂时锁定。' : '请完成出生日期设置以解锁 AI 深度解析内容。'}
-             </p>
+             <div className="text-center py-10 text-on-surface-variant/40 italic text-sm">
+               {hideBirth ? '由于隐私保护，命理报告已锁定' : '请先完善生辰信息以解锁深度解析'}
+             </div>
+          ) : isAnalyzing ? (
+            <ZenLoader message="正在感应星象能量..." />
           ) : (
             <>
-              <p>
-                此命盘日主为<span className="text-primary font-bold">{pillars[2].stem}木</span>，生于<span className="text-primary font-bold">{pillars[1].branch}月</span>。根据干支五行分布，您属于“<span className="text-on-surface font-black px-2 py-0.5 bg-primary/10 rounded">{baziData?.pattern || '---'}</span>”。这赋予了你极强的执行力与独特的个人魅力。
-              </p>
-              <p className="p-4 bg-surface-container-highest/30 rounded-lg border-l-4 border-primary italic">
-                “目前正值关键转型点，虽有挑战，但亦是跨越阶层的绝佳契机。建议在日常生活中多亲近具有<span className="text-primary">水、木</span>气息的环境，有助于提升个人磁场。”
-              </p>
+              <div className="relative z-10">
+                <p className="text-on-surface/90 leading-relaxed text-sm md:text-base font-medium">
+                  {deepAnalysis || '暂时无法获取深度解析。'}
+                </p>
+              </div>
+              <div className="mt-8 pt-6 border-t border-outline-variant/10 flex items-center justify-between">
+                <span className="text-[10px] text-primary/40 font-bold uppercase tracking-[0.2em]">知命 AI 研究所</span>
+                <div className="flex items-center gap-2 text-[10px] text-primary/40 italic">
+                  <ShieldCheck size={12} />
+                  已结合八字排盘实时计算
+                </div>
+              </div>
             </>
           )}
-        </div>
-      </motion.section>
-
-
+        </motion.div>
+      </section>
 
       {/* Annual Fortune Overview */}
       <section className="space-y-6">
@@ -336,7 +278,7 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
               </p>
               <div className="mt-4 flex items-center gap-2 text-[10px] text-primary/60">
                 <ShieldCheck size={12} />
-                <span>知命 AI 专属年度预测：风险系数 20% | 机遇指数 85%</span>
+                <span>知命 AI 专属年度预测 · 逻辑演算</span>
               </div>
             </motion.div>
           )}

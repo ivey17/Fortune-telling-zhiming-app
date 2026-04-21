@@ -1,11 +1,13 @@
 import { Send, Languages, Sparkles, RotateCcw, User, Loader2 } from 'lucide-react';
 import { motion, useAnimation, AnimatePresence } from 'motion/react';
 import { useState, useRef, useEffect } from 'react';
-import { askDivinationAI, saveDivination } from '../services/aiService';
+import { askDivinationAI, saveDivination, askAIStream } from '../services/aiService';
 import { cn } from '../lib/utils';
 import { generateLiuyao, getHexagramInfo, HexagramInfo } from '../lib/iching';
 import ZenLoader from '../components/ZenLoader';
 import MarkdownContent from '../components/MarkdownContent';
+import { cacheService } from '../services/cacheService';
+import { useUser } from '../contexts/UserContext';
 
 interface Message {
   role: 'user' | 'ai';
@@ -13,6 +15,7 @@ interface Message {
 }
 
 export default function DivinationPage() {
+  const { refreshHistory } = useUser();
   const [lines, setLines] = useState<number[]>([]); // 6, 7, 8, 9
   const [isCasting, setIsCasting] = useState(false);
   const [interpretation, setInterpretation] = useState<string | null>(null);
@@ -47,6 +50,7 @@ export default function DivinationPage() {
     setInterpretation(null);
     setHexInfo(null);
     setLines([]);
+    setMessages([]);
 
     const newLines = generateLiuyao();
 
@@ -61,16 +65,13 @@ export default function DivinationPage() {
     setLines(newLines);
     setIsCasting(false);
     
-    // Simple interpretation
+    // 仅展示基础卦名信息，不预先下断语
     const info = getHexagramInfo(newLines);
     setHexInfo(info);
+    
     const simpleResult = `【${info.name}】（${info.symbol}）\n${info.meaning}\n\n解读：${info.description}`;
     setInterpretation(simpleResult);
-    
-    // Save to history
-    saveDivination(newLines, simpleResult, `起卦：${info.name}`);
   };
-
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isSending) return;
@@ -80,20 +81,35 @@ export default function DivinationPage() {
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setIsSending(true);
 
-    // Logic: If not casted, prompt to cast
     if (lines.length === 0) {
       setToast('心诚则灵，请阁下先点击“起卦”按钮感应天地。');
       setTimeout(() => {
-        setMessages(prev => [...prev, { role: 'ai', content: '【系统提示】：请阁下先起卦，乾坤定后方可深解析。' }]);
+        setMessages(prev => [...prev, { role: 'ai', content: '【系统提示】：请阁下先起卦，乾坤定后方可进行解析。' }]);
         setIsSending(false);
       }, 500);
       return;
     }
 
     try {
-      // Logic: Combined analysis
-      const response = await askDivinationAI(userMsg, { lines });
-      setMessages(prev => [...prev, { role: 'ai', content: response.content }]);
+      setMessages(prev => [...prev, { role: 'ai', content: '' }]);
+      let fullContent = '';
+      
+      for await (const chunk of askAIStream('/api/ai/divination', { 
+        query: userMsg, 
+        context: { lines, interpretation },
+        title: userMsg
+      })) {
+        fullContent += chunk;
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last.role === 'ai') {
+            return [...prev.slice(0, -1), { ...last, content: fullContent }];
+          }
+          return prev;
+        });
+      }
+      
+      refreshHistory(); // 立即刷新历史记录以确保个人中心同步
     } catch (error) {
       setMessages(prev => [...prev, { role: 'ai', content: '（玄理波动）此时心绪难宁，无法深度解析。' }]);
     } finally {
@@ -116,6 +132,12 @@ export default function DivinationPage() {
         className="flex justify-between items-center"
       >
         <h2 className="text-4xl font-headline font-black tracking-tight text-primary uppercase">占卜问卦</h2>
+        {lines.length > 0 && (
+          <button onClick={reset} className="text-primary/40 hover:text-primary transition-colors flex items-center gap-1 text-xs">
+            <RotateCcw size={14} />
+            重置
+          </button>
+        )}
       </motion.section>
 
       {/* Intro Header */}
@@ -125,7 +147,7 @@ export default function DivinationPage() {
             <Sparkles className="text-background" size={18} fill="currentColor" />
           </div>
           <div className="bg-surface-container-low p-5 rounded-tr-3xl rounded-br-3xl rounded-bl-lg max-w-[85%] border-l-2 border-primary/30 min-h-[5rem] flex items-center">
-            <p className="text-on-surface leading-relaxed font-medium">
+            <p className="text-on-surface leading-relaxed font-medium text-sm">
               {lines.length === 0 ? "请静心冥想你心中所求，点击下方按钮起卦。亦可在此之前先行咨询。" : "乾坤已现，天机示于阁下。请结合卦象继续追问。"}
             </p>
           </div>
@@ -134,7 +156,6 @@ export default function DivinationPage() {
 
       {/* Ritual Activity Area */}
       <section className="glass-card p-10 rounded-[2.5rem] border border-outline-variant/10 shadow-2xl flex flex-col items-center gap-12">
-        {/* 6 Coins Grid */}
         <div className="grid grid-cols-3 gap-8 md:gap-12">
           {coinControls.map((ctrl, i) => (
             <div key={i} className="flex flex-col items-center gap-4">
@@ -143,16 +164,12 @@ export default function DivinationPage() {
                 className="w-20 h-20 rounded-full flex items-center justify-center relative bg-gradient-to-br from-[#f2c36b] to-[#d4a853] shadow-[0_0_20px_rgba(242,195,107,0.3)] border border-primary/20"
               >
                 {lines.length === 0 ? (
-                  // Ancient Chinese Coin Style (Golden)
                   <div className="w-7 h-7 border-2 border-background/40 rounded-sm bg-background/5 shadow-inner" />
                 ) : (
-                  // Result Bar Style
                   <div className="w-12 flex flex-col gap-1.5 items-center">
                     {(lines[i] === 7 || lines[i] === 9) ? (
-                      // Solid Line
                       <div className="w-full h-2.5 bg-background rounded-full shadow-sm" />
                     ) : (
-                      // Broken Line
                       <div className="w-full flex gap-1.5">
                         <div className="h-2.5 flex-1 bg-background rounded-full shadow-sm" />
                         <div className="h-2.5 flex-1 bg-background rounded-full shadow-sm" />
@@ -192,7 +209,6 @@ export default function DivinationPage() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
-            {/* Visual Hexagram Bar Summary */}
             <div className="flex justify-center py-6 bg-surface-container-low rounded-3xl border border-primary/10">
               <div className="flex flex-col-reverse gap-3 w-40">
                 {lines.map((score, i) => (
@@ -213,8 +229,7 @@ export default function DivinationPage() {
               </div>
             </div>
 
-            {/* AI Text Interpretation */}
-            <div className="bg-surface-container-high p-8 rounded-3xl border border-primary/20 shadow-xl space-y-4 h-auto">
+            <div className="bg-surface-container-high p-8 rounded-3xl border border-primary/20 shadow-xl space-y-4">
               <div className="flex items-center gap-3 text-primary border-b border-primary/10 pb-4">
                 <Sparkles size={20} />
                 <h3 className="font-headline font-bold text-lg">卦象解析</h3>
@@ -224,43 +239,37 @@ export default function DivinationPage() {
               </div>
             </div>
 
-            {/* Chat History - Moved here from top */}
+            {/* Chat History */}
             <section className="flex flex-col gap-6 pt-4 pb-24">
-              <AnimatePresence>
-                {messages.map((msg, idx) => (
-                  <motion.div 
-                    key={idx}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={cn(
-                      "flex items-start gap-4 mb-2",
-                      msg.role === 'user' ? "flex-row-reverse" : "flex-row"
-                    )}
-                  >
-                    <div className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                      msg.role === 'user' ? "bg-surface-container-highest" : "bg-primary/20"
-                    )}>
-                      {msg.role === 'user' ? <User size={14} /> : <Sparkles size={14} className="text-primary" />}
-                    </div>
-                    <div className={cn(
-                      "p-4 rounded-2xl max-w-[80%] text-sm leading-relaxed shadow-sm",
-                      msg.role === 'user' 
-                        ? "bg-primary text-background rounded-tr-none whitespace-pre-wrap" 
-                        : "bg-surface-container-low text-on-surface rounded-tl-none border-l-2 border-primary/30"
-                    )}>
-                      {msg.role === 'user' ? (
-                        msg.content
-                      ) : (
-                        <MarkdownContent content={msg.content} />
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              {isSending && (
+              {messages.map((msg, idx) => (
+                <motion.div 
+                  key={idx}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={cn(
+                    "flex items-start gap-4 mb-2",
+                    msg.role === 'user' ? "flex-row-reverse" : "flex-row"
+                  )}
+                >
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                    msg.role === 'user' ? "bg-surface-container-highest" : "bg-primary/20"
+                  )}>
+                    {msg.role === 'user' ? <User size={14} /> : <Sparkles size={14} className="text-primary" />}
+                  </div>
+                  <div className={cn(
+                    "p-4 rounded-2xl max-w-[80%] text-sm leading-relaxed shadow-sm",
+                    msg.role === 'user' 
+                      ? "bg-primary text-background font-bold rounded-tr-none whitespace-pre-wrap" 
+                      : "bg-surface-container-low text-on-surface rounded-tl-none border-l-2 border-primary/30"
+                  )}>
+                    {msg.role === 'user' ? msg.content : <MarkdownContent content={msg.content} />}
+                  </div>
+                </motion.div>
+              ))}
+              {(isSending || isInterpreting) && (
                 <div className="py-4">
-                  <ZenLoader message="大师正在深度解析卦象..." />
+                  <ZenLoader message={isInterpreting ? "大师正在深度感应卦象..." : "大师正在深度解析..."} />
                 </div>
               )}
             </section>
@@ -301,6 +310,7 @@ export default function DivinationPage() {
           </button>
         </div>
       </div>
+      
       {/* Global Toast */}
       <AnimatePresence>
         {toast && (
