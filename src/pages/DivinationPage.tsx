@@ -80,8 +80,7 @@ export default function DivinationPage() {
       // Restore messages
       const lastHistory = todayDivHistory[todayDivHistory.length - 1];
       setActiveHistoryId(lastHistory.id);
-      const flattenedMessages = todayDivHistory.flatMap(h => h.messages);
-      setMessages(flattenedMessages);
+      setMessages(lastHistory.messages);
 
       // Restore hexagram state if not already set by cache or if history is more recent
       // The backend prepends interpretation as an AI message if it was part of the context
