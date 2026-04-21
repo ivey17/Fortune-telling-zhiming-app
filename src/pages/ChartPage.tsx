@@ -37,10 +37,11 @@ export default function ChartPage({ onGoToProfile }: { onGoToProfile: () => void
   useEffect(() => {
     if (!profile?.birth_date || hideBirth || !baziData) return;
 
-    const cacheKey = `bazi_v2_analysis_${profile.id}`;
+    // 使用用户 ID 和出生时间共同作为缓存 Key，确保不修改出生时间就不重新生成
+    const cacheKey = `bazi_v2_analysis_${profile.id}_${profile.birth_date}`;
     const cached = cacheService.get<string>(cacheKey);
 
-    if (cached && !cached.includes("天机混沌")) {
+    if (cached && !cached.includes("天机混沌") && !cached.includes("接口调用失败")) {
       setDeepAnalysis(cached);
     } else {
       fetchDeepAnalysis();

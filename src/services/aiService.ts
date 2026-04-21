@@ -88,9 +88,22 @@ export async function* askAIStream(endpoint: string, body: any): AsyncGenerator<
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
 
+  let buffer = "";
+  let lastYieldTime = Date.now();
+
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
-    yield decoder.decode(value, { stream: true });
+    if (done) {
+      if (buffer) yield buffer;
+      break;
+    }
+    
+    buffer += decoder.decode(value, { stream: true });
+    
+    if (Date.now() - lastYieldTime > 50) {
+      yield buffer;
+      buffer = "";
+      lastYieldTime = Date.now();
+    }
   }
 }

@@ -91,7 +91,7 @@ export default function FortunePage() {
     const cacheKey = `spirit_v2_diary_${profile.id}_${todayStr}`;
     const cached = cacheService.get<string>(cacheKey);
 
-    if (cached && !cached.includes("天机混沌")) {
+    if (cached && !cached.includes("天机混沌") && !cached.includes("接口调用失败")) {
       setSpiritDiary(cached);
     } else {
       fetchDiary();
