@@ -58,7 +58,7 @@ async def call_ai(prompt: str, system_instruction: str = ""):
             )
             return response.choices[0].message.content
         except Exception as e:
-            print(f"OpenAI Call Failed: {e}")
+            return f"(OpenAI Error) {str(e)}"
     
     # 尝试使用 Gemini
     if gemini_client:
@@ -70,9 +70,9 @@ async def call_ai(prompt: str, system_instruction: str = ""):
             )
             return response.text
         except Exception as e:
-            print(f"Gemini Call Failed: {e}")
+            return f"(Gemini Error) {str(e)}"
             
-    return None
+    return "(System Error) No AI client initialized"
 
 # --- 大师 1：玄空命理师 (运势咨询) ---
 @router.post("/fortune")
@@ -107,8 +107,10 @@ async def ask_fortune(req: AIQuery, user=Depends(get_current_user)):
     
     answer = await call_ai(req.query, system_instruction)
     
-    if not answer:
-        answer = "（系统消息）大师正在闭关，星象显示今日暂不宜多言，请稍后再试。"
+    if not answer or answer.startswith("("):
+        # 如果是调试模式，返回错误详情；否则返回通用提示
+        # answer = answer if answer else "大师正在闭关..."
+        pass # 保留 answer 以便查看报错
     
     # 保存历史
     try:
@@ -169,8 +171,8 @@ async def ask_divination(req: AIQuery, user=Depends(get_current_user)):
     
     answer = await call_ai(req.query, system_instruction)
     
-    if not answer:
-        answer = "（系统消息）卦象模糊，乾坤未定，请重新整理思绪后再试。"
+    if not answer or answer.startswith("("):
+        pass # 保留内容以便查看报错
         
     # 保存历史
     try:
